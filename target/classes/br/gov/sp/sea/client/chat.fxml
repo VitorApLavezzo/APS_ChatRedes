@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox spacing="10" xmlns:fx="http://javafx.com/fxml" fx:controller="br.gov.sp.sea.client.ChatController">
+    <padding>
+        <Insets top="10" right="10" bottom="10" left="10"/>
+    </padding>
+    
+    <HBox spacing="10">
+        <TextField fx:id="usernameField" promptText="Nome do Inspetor" HBox.hgrow="ALWAYS"/>
+        <TextField fx:id="serverField" promptText="Endereço do Servidor" HBox.hgrow="ALWAYS"/>
+        <Button fx:id="connectButton" text="Conectar" onAction="#handleConnect"/>
+    </HBox>
+    
+    <TextArea fx:id="chatArea" editable="false" VBox.vgrow="ALWAYS"/>
+    
+    <HBox spacing="10">
+        <TextField fx:id="messageField" promptText="Digite sua mensagem" HBox.hgrow="ALWAYS" onAction="#handleSendMessage"/>
+        <Button fx:id="sendButton" text="Enviar" onAction="#handleSendMessage"/>
+        <Button fx:id="uploadButton" text="Enviar Arquivo" onAction="#handleFileUpload"/>
+    </HBox>
+    
+    <Label fx:id="statusLabel" text="Desconectado"/>
+</VBox> 

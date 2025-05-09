@@ -1,0 +1,4 @@
+br/gov/sp/sea/server/ClientHandler.class
+br/gov/sp/sea/client/ChatController.class
+br/gov/sp/sea/server/ChatServer.class
+br/gov/sp/sea/Main.class
