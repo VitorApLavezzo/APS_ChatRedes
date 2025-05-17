@@ -1,5 +1,6 @@
 package tieteMonitor.client;
 
+<<<<<<< HEAD
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -9,6 +10,16 @@ import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.nio.file.*;
 import java.text.SimpleDateFormat;
+=======
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.net.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
+>>>>>>> teste
 import tieteMonitor.util.TransferenciaArquivos;
 
 /**
@@ -16,8 +27,13 @@ import tieteMonitor.util.TransferenciaArquivos;
  * Permite que inspetores se comuniquem com a central e entre si
  */
 public class ClienteMonitoramento {
+<<<<<<< HEAD
     private static final String SERVIDOR_IP = "localhost";
     private static final int SERVIDOR_PORTA = 12345;
+=======
+    private static final String SERVIDOR_IP = "0.tcp.sa.ngrok.io";
+    private static final int SERVIDOR_PORTA = 17137;
+>>>>>>> teste
 
     private Socket socket;
     private PrintWriter saida;
@@ -118,10 +134,21 @@ public class ClienteMonitoramento {
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(700, 500);
 
+<<<<<<< HEAD
+=======
+        try {
+            UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
+            SwingUtilities.updateComponentTreeUI(frame);
+        } catch (Exception e) {
+            // Se não conseguir aplicar o Nimbus, segue com o padrão
+        }
+
+>>>>>>> teste
         // Área de mensagens
         areaMensagens = new JTextArea();
         areaMensagens.setEditable(false);
         areaMensagens.setFont(new Font("SansSerif", Font.PLAIN, 14));
+<<<<<<< HEAD
         JScrollPane scrollPane = new JScrollPane(areaMensagens);
 
         // Painel de entrada de mensagem
@@ -129,10 +156,26 @@ public class ClienteMonitoramento {
         campoMensagem = new JTextField();
         campoMensagem.addActionListener(e -> enviarMensagem());
         botaoEnviar = new JButton("Enviar");
+=======
+        areaMensagens.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(180, 180, 180)),
+            BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+        JScrollPane scrollPane = new JScrollPane(areaMensagens);
+
+        // Painel de entrada de mensagem
+        JPanel painelEntrada = new JPanel(new BorderLayout(5, 5));
+        campoMensagem = new JTextField();
+        campoMensagem.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        campoMensagem.addActionListener(e -> enviarMensagem());
+        botaoEnviar = new JButton("Enviar");
+        botaoEnviar.setIcon(new ImageIcon("src/resources/send.png")); // Adicione um ícone de envio
+>>>>>>> teste
         botaoEnviar.addActionListener(e -> enviarMensagem());
         painelEntrada.add(campoMensagem, BorderLayout.CENTER);
         painelEntrada.add(botaoEnviar, BorderLayout.EAST);
 
+<<<<<<< HEAD
         // Painel de emoticons
         String[] emoticons = {"😊", "😔", "⚠️", "🔍", "📄", "📊", "🌊", "🏭"};
         comboEmoticons = new JComboBox<>(emoticons);
@@ -147,15 +190,26 @@ public class ClienteMonitoramento {
         JPanel painelBotoes = new JPanel(new FlowLayout(FlowLayout.LEFT));
 
         botaoRelatorio = new JButton("Enviar Relatório");
+=======
+        // Painel de botões
+        JPanel painelBotoes = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
+        botaoRelatorio = new JButton("Enviar Relatório");
+        botaoRelatorio.setIcon(new ImageIcon("src/resources/report.png")); // Ícone de relatório
+>>>>>>> teste
         botaoRelatorio.addActionListener(e -> abrirJanelaRelatorio());
         painelBotoes.add(botaoRelatorio);
 
         botaoAlerta = new JButton("Alerta Ambiental");
         botaoAlerta.setBackground(new Color(255, 100, 100));
+<<<<<<< HEAD
+=======
+        botaoAlerta.setIcon(new ImageIcon("src/resources/alert.png")); // Ícone de alerta
+>>>>>>> teste
         botaoAlerta.addActionListener(e -> abrirJanelaAlerta());
         painelBotoes.add(botaoAlerta);
 
         JButton botaoEnviarArquivo = new JButton("Enviar Arquivo");
+<<<<<<< HEAD
         botaoEnviarArquivo.addActionListener(e -> selecionarArquivo());
         painelBotoes.add(botaoEnviarArquivo);
 
@@ -165,6 +219,34 @@ public class ClienteMonitoramento {
         botaoChat.addActionListener(e -> abrirChatInspetores());
         painelBotoes.add(botaoChat);
 
+=======
+        botaoEnviarArquivo.setIcon(new ImageIcon("src/resources/file.png")); // Ícone de arquivo
+        botaoEnviarArquivo.addActionListener(e -> selecionarArquivo());
+        painelBotoes.add(botaoEnviarArquivo);
+
+        JButton botaoChat = new JButton("Chat Inspetores");
+        botaoChat.setBackground(new Color(100, 180, 255));
+        botaoChat.setIcon(new ImageIcon("src/resources/chat.png")); // Ícone de chat
+        botaoChat.addActionListener(e -> abrirChatInspetores());
+        painelBotoes.add(botaoChat);
+
+        // Barra de menu
+        JMenuBar menuBar = new JMenuBar();
+        JMenu menuArquivo = new JMenu("Arquivo");
+        JMenuItem itemSair = new JMenuItem("Sair");
+        itemSair.addActionListener(e -> frame.dispose());
+        menuArquivo.add(itemSair);
+        menuBar.add(menuArquivo);
+
+        JMenu menuAjuda = new JMenu("Ajuda");
+        JMenuItem itemSobre = new JMenuItem("Sobre");
+        itemSobre.addActionListener(e -> JOptionPane.showMessageDialog(frame, "Sistema de Monitoramento Ambiental do Rio Tietê\nVersão 1.0", "Sobre", JOptionPane.INFORMATION_MESSAGE));
+        menuAjuda.add(itemSobre);
+        menuBar.add(menuAjuda);
+
+        frame.setJMenuBar(menuBar);
+
+>>>>>>> teste
         // Painel de status
         painelStatus = new JPanel(new BorderLayout());
         painelStatus.setBorder(BorderFactory.createEtchedBorder());
@@ -175,11 +257,23 @@ public class ClienteMonitoramento {
         JLabel labelInfo = new JLabel("Inspetor: " + nomeInspetor + " | Local: " + localMonitorado);
         painelStatus.add(labelInfo, BorderLayout.EAST);
 
+<<<<<<< HEAD
         // Adiciona componentes ao frame
         frame.getContentPane().add(scrollPane, BorderLayout.CENTER);
         frame.getContentPane().add(painelEntrada, BorderLayout.SOUTH);
         frame.getContentPane().add(painelBotoes, BorderLayout.NORTH);
         frame.getContentPane().add(painelStatus, BorderLayout.PAGE_END);
+=======
+        // Painel principal da interface
+        JPanel painelPrincipal = new JPanel(new BorderLayout());
+        painelPrincipal.add(scrollPane, BorderLayout.CENTER);
+        painelPrincipal.add(painelEntrada, BorderLayout.SOUTH);
+        painelPrincipal.add(painelBotoes, BorderLayout.NORTH);
+        painelPrincipal.add(painelStatus, BorderLayout.PAGE_END);
+
+        // Adiciona o painel principal ao frame
+        frame.getContentPane().add(painelPrincipal);
+>>>>>>> teste
 
         // Configura janela
         frame.setLocationRelativeTo(null);
@@ -231,16 +325,41 @@ public class ClienteMonitoramento {
             String mensagem;
             while ((mensagem = entrada.readLine()) != null) {
                 final String msgFinal = mensagem;
+<<<<<<< HEAD
 
                 // Verifica se a mensagem é para o chat de inspetores
                 boolean processadaPeloChat = chatInspetores.processarMensagem(msgFinal);
 
+=======
+    
+                // Verifica se a mensagem é para o chat de inspetores
+                boolean processadaPeloChat = chatInspetores.processarMensagem(msgFinal);
+    
+>>>>>>> teste
                 // Se não foi processada pelo chat, trata normalmente
                 if (!processadaPeloChat) {
                     SwingUtilities.invokeLater(() -> {
                         if (msgFinal.startsWith("ALERTA:")) {
                             // Formata alertas de forma destacada
                             adicionarAlerta(msgFinal.substring(7));
+<<<<<<< HEAD
+=======
+                        } else if (msgFinal.startsWith("RELATORIO_COMPLETO:")) {
+                            // Processa relatório completo
+                            String relatorio = msgFinal.substring(19);
+                            
+                            // Substitui todos os <br> por quebras de linha reais
+                            relatorio = relatorio.replace("<br>", "\n");
+                            
+                            adicionarRelatorio(relatorio);
+                        } else if (msgFinal.startsWith("RELATORIO_DIRETO:")) {
+                            // Processa relatório direto (novo formato)
+                            String relatorio = msgFinal.substring(17);
+                            adicionarRelatorio(relatorio);
+                        } else if (msgFinal.startsWith("RELATORIO_LOCAL:")) {
+                            // Ignora mensagens com este prefixo, pois já foram processadas localmente
+                            // Não faz nada aqui
+>>>>>>> teste
                         } else {
                             adicionarMensagem(msgFinal);
                         }
@@ -337,9 +456,19 @@ public class ClienteMonitoramento {
             String conteudoRelatorio = areaRelatorio.getText().trim();
             if (!conteudoRelatorio.isEmpty()) {
                 if (saida != null) {
+<<<<<<< HEAD
                     // Envia relatório ao servidor
                     saida.println("RELATORIO:" + conteudoRelatorio);
                     adicionarMensagem("Relatório enviado com sucesso.");
+=======
+                    // Adiciona o relatório localmente primeiro
+                    adicionarRelatorio(conteudoRelatorio);
+                    adicionarMensagem("Relatório enviado com sucesso.");
+                    
+                    // Envia apenas uma mensagem simples para o servidor
+                    saida.println("RELATORIO_ENVIADO: Um relatório ambiental foi enviado pelo inspetor " + nomeInspetor);
+                    
+>>>>>>> teste
                     dialogRelatorio.dispose();
                 }
             } else {
@@ -348,7 +477,11 @@ public class ClienteMonitoramento {
                         "Erro", JOptionPane.ERROR_MESSAGE);
             }
         });
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> teste
         painelBotoes.add(btnCancelar);
         painelBotoes.add(btnEnviar);
 
@@ -455,6 +588,24 @@ public class ClienteMonitoramento {
         }
     }
 
+<<<<<<< HEAD
+=======
+    // Novo método para adicionar relatórios formatados
+    private void adicionarRelatorio(String relatorio) {
+        // Adiciona timestamp ao relatório
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+        String timestamp = sdf.format(new Date());
+
+        areaMensagens.append("\n================ RELATÓRIO AMBIENTAL ================\n");
+        areaMensagens.append("[" + timestamp + "]\n\n");
+        areaMensagens.append(relatorio + "\n");
+        areaMensagens.append("==================================================\n\n");
+
+        // Auto-scroll para a última linha
+        areaMensagens.setCaretPosition(areaMensagens.getDocument().getLength());
+    }
+
+>>>>>>> teste
     // Getters para uso pelo ChatInspetores
     public String getNomeInspetor() {
         return nomeInspetor;
@@ -467,4 +618,8 @@ public class ClienteMonitoramento {
     public JFrame getFrame() {
         return frame;
     }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> teste

@@ -21,6 +21,10 @@ bin/
 /dist/
 /nbdist/
 /.nb-gradle/
+<<<<<<< HEAD
+=======
+/ngrok/
+>>>>>>> teste
 
 ### VS Code ###
 .vscode/
