@@ -8,6 +8,8 @@ import java.awt.event.*;
 import javax.swing.*;
 import java.text.SimpleDateFormat;
 import java.util.List;
+import java.util.concurrent.*;
+import java.util.HashMap;
 
 /**
  * Componente de chat entre inspetores do Sistema de Monitoramento Ambiental do Rio Tietê
@@ -93,11 +95,22 @@ public class ChatInspetores {
         campoMensagem = new JTextField();
         campoMensagem.addActionListener(e -> enviarMensagem());
 
+        // Botão de emoji
+        JButton botaoEmoji = new JButton("😊");
+        botaoEmoji.setFont(new Font("Dialog", Font.PLAIN, 18));
+        botaoEmoji.setFocusable(false);
+        botaoEmoji.setMargin(new Insets(2, 6, 2, 6));
+        botaoEmoji.addActionListener(e -> abrirPopupEmojis());
+
         botaoEnviar = new JButton("Enviar");
         botaoEnviar.addActionListener(e -> enviarMensagem());
 
-        painelMensagem.add(campoMensagem, BorderLayout.CENTER);
-        painelMensagem.add(botaoEnviar, BorderLayout.EAST);
+        // Adiciona campo, botão emoji e botão enviar
+        JPanel painelCampo = new JPanel(new BorderLayout());
+        painelCampo.add(campoMensagem, BorderLayout.CENTER);
+        painelCampo.add(botaoEmoji, BorderLayout.WEST);
+        painelCampo.add(botaoEnviar, BorderLayout.EAST);
+        painelMensagem.add(painelCampo, BorderLayout.CENTER);
 
         // Painel informativo
         JPanel painelInfo = new JPanel(new FlowLayout(FlowLayout.CENTER));
@@ -321,5 +334,54 @@ public class ChatInspetores {
         } else {
             janela.setVisible(false);
         }
+    }
+
+    // Novo método para abrir o popup de emojis
+    private void abrirPopupEmojis() {
+        JDialog dialog = new JDialog(janela, "Emojis", true);
+        dialog.setSize(400, 350);
+        dialog.setLayout(new BorderLayout());
+
+        // Categorias de emojis
+        String[] categorias = {"Expressões", "Natureza", "Objetos", "Símbolos"};
+        JComboBox<String> comboCategorias = new JComboBox<>(categorias);
+
+        // Emojis por categoria
+        Map<String, String[]> emojisPorCategoria = new HashMap<>();
+        emojisPorCategoria.put("Expressões", new String[]{"😊", "😄", "😃", "😀", "😁", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩", "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯", "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕"});
+        emojisPorCategoria.put("Natureza", new String[]{"🌱", "🌲", "🌳", "🌴", "🌵", "🌾", "🌿", "☘️", "🍀", "🍁", "🍂", "🍃", "🌺", "🌸", "🌼", "🌻", "🌞", "🌝", "🌛", "🌜", "🌚", "🌕", "🌖", "🌗", "🌘", "🌑", "🌒", "🌓", "🌔", "🌙", "🌎", "🌍", "🌏", "💫", "⭐", "🌟", "✨", "⚡", "☄️", "💥", "🔥", "🌪", "🌈", "☀️", "🌤", "⛅", "🌥", "☁️", "🌦", "🌧", "⛈", "🌩", "🌨", "❄️", "☃️", "⛄", "🌬", "💨", "💧", "💦", "☔", "☂️", "🌊", "🌫"});
+        emojisPorCategoria.put("Objetos", new String[]{"📱", "📲", "📟", "📠", "🔋", "🔌", "💻", "🖥", "🖨", "⌨️", "🖱", "🖲", "🕹", "🗜", "💽", "💾", "💿", "📀", "📼", "📷", "📸", "📹", "🎥", "📽", "🎞", "📞", "☎️", "📟", "📠", "📺", "📻", "🎙", "🎚", "🎛", "🧭", "⏱", "⏲", "⏰", "🕰", "⌛️", "⏳", "📡", "🔋", "🔌", "💡", "🔦", "🕯", "🗑", "🛢", "💸", "💵", "💴", "💶", "💷", "🗃", "📦", "📫", "📪", "📬", "📭", "📮", "🗳", "✉️", "📩", "📨", "📧", "💌", "📥", "📤", "📦", "🏷", "🗳", "🛍", "🛒", "🎁", "🎈", "🎏", "🎀", "🎊", "🎉", "🎎", "🏮", "🎐", "🧧", "✉️", "📩", "📨", "📧", "💌", "📥", "📤", "📦", "🏷", "🗳", "🛍", "🛒", "🎁", "🎈", "🎏", "🎀", "🎊", "🎉", "🎎", "🏮", "🎐", "🧧"});
+        emojisPorCategoria.put("Símbolos", new String[]{"❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "☮️", "✝️", "☪️", "🕉", "☸️", "✡️", "🔯", "🕎", "☯️", "☦️", "🛐", "⛎", "♈️", "♉️", "♊️", "♋️", "♌️", "♍️", "♎️", "♏️", "♐️", "♑️", "♒️", "♓️", "🆔", "⚛️", "🉑", "☢️", "☣️", "📴", "📳", "🈶", "🈚️", "🈸", "🈺", "🈷️", "✴️", "🆚", "💮", "🉐", "㊙️", "㊗️", "🈴", "🈵", "🈹", "🈲", "🅰️", "🅱️", "🆎", "🆑", "🅾️", "🆘", "❌", "⭕️", "🛑", "⛔️", "📛", "🚫", "💯", "💢", "♨️", "🚷", "🚯", "🚳", "🚱", "🔞", "📵", "🚭", "❗️", "❕", "❓", "❔", "‼️", "⁉️", "🔅", "🔆", "〽️", "⚠️", "🚸", "🔱", "⚜️", "🔰", "♻️", "✅", "🈯️", "💹", "❇️", "✳️", "❎", "🌐", "💠", "Ⓜ️", "🌀", "💤", "🏧", "🚾", "♿️", "🅿️", "🛗", "🛂", "🛃", "🛄", "🛅", "🚹", "🚺", "🚼", "🚻", "🚮", "🎦", "📶", "🈁", "🔣", "ℹ️", "🔤", "🔡", "🔠", "🆖", "🆗", "🆙", "🆒", "🆕", "🆓", "0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟", "🔢", "#️⃣", "*️⃣", "⏏️", "▶️", "⏸", "⏹", "⏺", "⏭", "⏮", "⏩", "⏪", "⏫", "⏬", "◀️", "🔼", "🔽", "➡️", "⬅️", "⬆️", "⬇️", "↗️", "↘️", "↙️", "↖️", "↕️", "↔️", "↪️", "↩️", "⤴️", "⤵️", "🔀", "🔁", "🔂", "🔄", "🔃", "🎵", "🎶", "➕", "➖", "➗", "✖️", "💲", "💱", "™️", "©️", "®️", "👁‍🗨", "🔚", "🔙", "🔛", "🔝", "🔜", "〰️", "➰", "➿", "✔️", "☑️", "🔘", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫️", "⚪️", "🟤", "🔺", "🔻", "🔸", "🔹", "🔶", "🔷", "🔳", "🔲", "▪️", "▫️", "◾️", "◽️", "◼️", "◻️", "🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "⬛️", "⬜️", "🟫", "🔈", "🔇", "🔉", "🔊", "🔔", "🔕", "📣", "📢", "💬", "💭", "🗯", "♠️", "♣️", "♥️", "♦️", "🃏", "🎴", "🀄️", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛", "🕜", "🕝", "🕞", "🕟", "🕠", "🕡", "🕢", "🕣", "🕤", "🕥", "🕦", "🕧"});
+
+        JPanel painelEmojis = new JPanel(new GridLayout(0, 8, 2, 2));
+        JScrollPane scrollEmojis = new JScrollPane(painelEmojis);
+        scrollEmojis.setPreferredSize(new Dimension(350, 200));
+
+        // Atualiza emojis ao trocar categoria
+        comboCategorias.addActionListener(e -> {
+            String categoria = (String) comboCategorias.getSelectedItem();
+            painelEmojis.removeAll();
+            for (String emoji : emojisPorCategoria.get(categoria)) {
+                JButton botaoEmoji = new JButton(emoji);
+                botaoEmoji.setFont(new Font("Dialog", Font.PLAIN, 22));
+                botaoEmoji.setFocusPainted(false);
+                botaoEmoji.setBorderPainted(false);
+                botaoEmoji.setContentAreaFilled(false);
+                botaoEmoji.setMargin(new Insets(0, 0, 0, 0));
+                botaoEmoji.addActionListener(ev -> {
+                    campoMensagem.setText(campoMensagem.getText() + emoji);
+                    dialog.dispose();
+                });
+                painelEmojis.add(botaoEmoji);
+            }
+            painelEmojis.revalidate();
+            painelEmojis.repaint();
+        });
+        comboCategorias.setSelectedIndex(0);
+
+        dialog.add(comboCategorias, BorderLayout.NORTH);
+        dialog.add(scrollEmojis, BorderLayout.CENTER);
+        dialog.setLocationRelativeTo(janela);
+        dialog.setVisible(true);
     }
 }
