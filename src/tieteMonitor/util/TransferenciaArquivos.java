@@ -14,6 +14,18 @@ public class TransferenciaArquivos {
     private static final int BUFFER_SIZE = 8192; // 8KB de buffer
 
     /**
+     * Interface para callback de progresso
+     */
+    public interface ProgressCallback {
+        /**
+         * Chamado durante o progresso da transferência
+         * @param percentual Percentual de conclusão (0-100)
+         * @return true para continuar, false para cancelar
+         */
+        boolean onProgress(double percentual);
+    }
+
+    /**
      * Envia um arquivo pelo socket
      * @param socket Socket conectado ao destinatário
      * @param arquivo Arquivo a ser enviado
@@ -109,5 +121,53 @@ public class TransferenciaArquivos {
      */
     public static boolean verificarIntegridade(File arquivo, long tamanhoEsperado) {
         return arquivo.length() == tamanhoEsperado;
+    }
+
+    /**
+     * Envia um arquivo pelo socket com feedback de progresso
+     * @param socket Socket conectado ao destinatário
+     * @param arquivo Arquivo a ser enviado
+     * @param destinatario Identificador do destinatário (nome do inspetor ou "CENTRAL")
+     * @param callback Callback para reportar progresso
+     * @return true se o envio foi bem sucedido, false caso contrário
+     */
+    public static boolean enviarArquivoComProgresso(Socket socket, File arquivo, String destinatario, ProgressCallback callback) {
+        try (
+                OutputStream out = socket.getOutputStream();
+                DataOutputStream dataOut = new DataOutputStream(out);
+                FileInputStream fileIn = new FileInputStream(arquivo)
+        ) {
+            // Envia metadados do arquivo
+            dataOut.writeUTF(destinatario);
+            dataOut.writeUTF(arquivo.getName());
+            dataOut.writeLong(arquivo.length());
+
+            // Envia o conteúdo do arquivo
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int bytesRead;
+            long totalEnviado = 0;
+            long tamanhoTotal = arquivo.length();
+
+            while ((bytesRead = fileIn.read(buffer)) != -1) {
+                dataOut.write(buffer, 0, bytesRead);
+                totalEnviado += bytesRead;
+
+                // Calcula e reporta o progresso
+                double percentual = (double) totalEnviado * 100 / tamanhoTotal;
+                if (callback != null) {
+                    boolean continuar = callback.onProgress(percentual);
+                    if (!continuar) {
+                        return false; // Transferência cancelada
+                    }
+                }
+            }
+
+            dataOut.flush();
+            return true;
+
+        } catch (IOException e) {
+            System.err.println("Erro ao enviar arquivo: " + e.getMessage());
+            return false;
+        }
     }
 }

@@ -9,14 +9,17 @@ import java.util.*;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import tieteMonitor.util.TransferenciaArquivos;
+import tieteMonitor.util.WebcamManager;
+import tieteMonitor.util.MulticastManager;
+import tieteMonitor.util.EmailSender;
 
 /**
  * Cliente para Sistema de Monitoramento Ambiental do Rio Tietê
  * Permite que inspetores se comuniquem com a central e entre si
  */
 public class ClienteMonitoramento {
-    private static final String SERVIDOR_IP = "0.tcp.sa.ngrok.io";
-    private static final int SERVIDOR_PORTA = 17137;
+    private String SERVIDOR_IP;
+    private int SERVIDOR_PORTA;
 
     private Socket socket;
     private PrintWriter saida;
@@ -34,23 +37,73 @@ public class ClienteMonitoramento {
     private JComboBox<String> comboEmoticons;
     private JPanel painelStatus;
     private JLabel labelStatus;
+    private JButton botaoEmoticons;
+    private JButton botaoEmail;
+    private MulticastManager multicastManager;
 
     // Componente de chat entre inspetores
     private ChatInspetores chatInspetores;
+    
+    // Gerenciadores de recursos
+    private WebcamManager webcamManager;
 
     public static void main(String[] args) {
-        new ClienteMonitoramento().iniciar();
+        SwingUtilities.invokeLater(() -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            new ClienteMonitoramento().iniciar();
+        });
     }
 
     public void iniciar() {
+        // Solicita endereço do servidor
+        solicitarEnderecoServidor();
+
         // Coleta informações do inspetor
         solicitarInformacoes();
 
         // Configura a interface gráfica
         configurarInterface();
 
+        // Inicializa o gerenciador de webcam
+        try {
+            webcamManager = new WebcamManager();
+        } catch (com.github.sarxos.webcam.WebcamException e) {
+            webcamManager = null;
+            adicionarMensagem("Erro ao inicializar webcam. Função desabilitada: " + e.getMessage());
+            System.err.println("Erro ao inicializar webcam: " + e.getMessage());
+        }
+
         // Conecta ao servidor
         conectarServidor();
+    }
+
+    private void solicitarEnderecoServidor() {
+        String endereco = JOptionPane.showInputDialog(null,
+                "Digite o endereço do servidor (ex: 0.tcp.sa.ngrok.io:12345):",
+                "Conexão com Servidor",
+                JOptionPane.QUESTION_MESSAGE);
+
+        if (endereco == null || endereco.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(null,
+                    "Endereço não fornecido. O programa será encerrado.",
+                    "Erro", JOptionPane.ERROR_MESSAGE);
+            System.exit(0);
+        }
+
+        try {
+            String[] partes = endereco.split(":");
+            SERVIDOR_IP = partes[0];
+            SERVIDOR_PORTA = Integer.parseInt(partes[1]);
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(null,
+                    "Formato de endereço inválido. Use o formato: endereco:porta",
+                    "Erro", JOptionPane.ERROR_MESSAGE);
+            System.exit(0);
+        }
     }
 
     private void solicitarInformacoes() {
@@ -115,16 +168,23 @@ public class ClienteMonitoramento {
     private void configurarInterface() {
         frame = new JFrame("Monitor Ambiental - Rio Tietê");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(700, 500);
-
+        frame.setSize(800, 600);
+    
         try {
-            UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
+            // Tema moderno FlatLaf
+            UIManager.setLookAndFeel("com.formdev.flatlaf.FlatDarkLaf");
             SwingUtilities.updateComponentTreeUI(frame);
         } catch (Exception e) {
-            // Se não conseguir aplicar o Nimbus, segue com o padrão
+            try {
+                // Fallback para Nimbus
+                UIManager.setLookAndFeel("javax.swing.plaf.nimbus.NimbusLookAndFeel");
+                SwingUtilities.updateComponentTreeUI(frame);
+            } catch (Exception ex) {
+                // Se não conseguir aplicar o Nimbus, segue com o padrão
+            }
         }
-
-        // Área de mensagens
+        
+        // Área de mensagens com estilo melhorado
         areaMensagens = new JTextArea();
         areaMensagens.setEditable(false);
         areaMensagens.setFont(new Font("SansSerif", Font.PLAIN, 14));
@@ -132,15 +192,25 @@ public class ClienteMonitoramento {
             BorderFactory.createLineBorder(new Color(180, 180, 180)),
             BorderFactory.createEmptyBorder(8, 8, 8, 8)
         ));
+        
         JScrollPane scrollPane = new JScrollPane(areaMensagens);
-
+    
         // Painel de entrada de mensagem
         JPanel painelEntrada = new JPanel(new BorderLayout(5, 5));
         campoMensagem = new JTextField();
         campoMensagem.setFont(new Font("SansSerif", Font.PLAIN, 14));
         campoMensagem.addActionListener(e -> enviarMensagem());
+        
+        // Botão de emoticons
+        botaoEmoticons = new JButton("😊");
+        botaoEmoticons.setFont(new Font("Dialog", Font.PLAIN, 18));
+        botaoEmoticons.setFocusable(false);
+        botaoEmoticons.setMargin(new Insets(2, 6, 2, 6));
+        botaoEmoticons.addActionListener(e -> abrirSeletorEmoticons());
+        painelEntrada.add(botaoEmoticons, BorderLayout.WEST);
+        
         botaoEnviar = new JButton("Enviar");
-        botaoEnviar.setIcon(new ImageIcon("src/resources/send.png")); // Adicione um ícone de envio
+        botaoEnviar.setIcon(new ImageIcon("src/resources/send.png"));
         botaoEnviar.addActionListener(e -> enviarMensagem());
         painelEntrada.add(campoMensagem, BorderLayout.CENTER);
         painelEntrada.add(botaoEnviar, BorderLayout.EAST);
@@ -148,24 +218,29 @@ public class ClienteMonitoramento {
         // Painel de botões
         JPanel painelBotoes = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         botaoRelatorio = new JButton("Enviar Relatório");
-        botaoRelatorio.setIcon(new ImageIcon("src/resources/report.png")); // Ícone de relatório
+        botaoRelatorio.setIcon(new ImageIcon("src/resources/report.png"));
         botaoRelatorio.addActionListener(e -> abrirJanelaRelatorio());
         painelBotoes.add(botaoRelatorio);
 
         botaoAlerta = new JButton("Alerta Ambiental");
         botaoAlerta.setBackground(new Color(255, 100, 100));
-        botaoAlerta.setIcon(new ImageIcon("src/resources/alert.png")); // Ícone de alerta
+        botaoAlerta.setIcon(new ImageIcon("src/resources/alert.png"));
         botaoAlerta.addActionListener(e -> abrirJanelaAlerta());
         painelBotoes.add(botaoAlerta);
 
+        botaoEmail = new JButton("Enviar E-mail");
+        botaoEmail.setIcon(new ImageIcon("src/resources/email.png"));
+        botaoEmail.addActionListener(e -> enviarRelatorioEmail());
+        painelBotoes.add(botaoEmail);
+
         JButton botaoEnviarArquivo = new JButton("Enviar Arquivo");
-        botaoEnviarArquivo.setIcon(new ImageIcon("src/resources/file.png")); // Ícone de arquivo
+        botaoEnviarArquivo.setIcon(new ImageIcon("src/resources/file.png"));
         botaoEnviarArquivo.addActionListener(e -> selecionarArquivo());
         painelBotoes.add(botaoEnviarArquivo);
 
         JButton botaoChat = new JButton("Chat Inspetores");
         botaoChat.setBackground(new Color(100, 180, 255));
-        botaoChat.setIcon(new ImageIcon("src/resources/chat.png")); // Ícone de chat
+        botaoChat.setIcon(new ImageIcon("src/resources/chat.png"));
         botaoChat.addActionListener(e -> abrirChatInspetores());
         painelBotoes.add(botaoChat);
 
@@ -202,14 +277,11 @@ public class ClienteMonitoramento {
         painelPrincipal.add(painelBotoes, BorderLayout.NORTH);
         painelPrincipal.add(painelStatus, BorderLayout.PAGE_END);
 
-        // Adiciona o painel principal ao frame
-        frame.getContentPane().add(painelPrincipal);
-
-        // Configura janela
+        frame.add(painelPrincipal);
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
 
-        // Configura encerramento
+        // Adiciona listener para fechamento da janela
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -224,24 +296,33 @@ public class ClienteMonitoramento {
             socket = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
             saida = new PrintWriter(socket.getOutputStream(), true);
             entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
+    
             // Envia identificação
             saida.println(nomeInspetor);
             saida.println(localMonitorado);
-
+    
             // Inicializa componente de chat entre inspetores
             chatInspetores = new ChatInspetores(this, socket, saida);
-
+            
+            // Inicializa o gerenciador multicast
+            multicastManager = new MulticastManager(mensagem -> {
+                if (mensagem.startsWith("ALERTA_MULTICAST:")) {
+                    String conteudoAlerta = mensagem.substring("ALERTA_MULTICAST:".length());
+                    SwingUtilities.invokeLater(() -> adicionarAlerta("[MULTICAST] " + conteudoAlerta));
+                }
+            });
+            multicastManager.iniciarRecepcao();
+    
             // Atualiza status
             SwingUtilities.invokeLater(() -> {
                 labelStatus.setText("Conectado ao servidor");
                 labelStatus.setForeground(new Color(0, 150, 0));
                 adicionarMensagem("Conectado ao Sistema de Monitoramento Ambiental do Rio Tietê");
             });
-
+    
             // Inicia thread para receber mensagens
             new Thread(this::receberMensagens).start();
-
+    
         } catch (IOException e) {
             adicionarMensagem("Erro ao conectar: " + e.getMessage());
             JOptionPane.showMessageDialog(frame,
@@ -254,242 +335,188 @@ public class ClienteMonitoramento {
         try {
             String mensagem;
             while ((mensagem = entrada.readLine()) != null) {
-                final String msgFinal = mensagem;
-    
-                // Verifica se a mensagem é para o chat de inspetores
-                boolean processadaPeloChat = chatInspetores.processarMensagem(msgFinal);
-    
-                // Se não foi processada pelo chat, trata normalmente
-                if (!processadaPeloChat) {
-                    SwingUtilities.invokeLater(() -> {
-                        if (msgFinal.startsWith("ALERTA:")) {
-                            // Formata alertas de forma destacada
-                            adicionarAlerta(msgFinal.substring(7));
-                        } else if (msgFinal.startsWith("RELATORIO_COMPLETO:")) {
-                            // Processa relatório completo
-                            String relatorio = msgFinal.substring(19);
-                            
-                            // Substitui todos os <br> por quebras de linha reais
-                            relatorio = relatorio.replace("<br>", "\n");
-                            
-                            adicionarRelatorio(relatorio);
-                        } else if (msgFinal.startsWith("RELATORIO_DIRETO:")) {
-                            // Processa relatório direto (novo formato)
-                            String relatorio = msgFinal.substring(17);
-                            adicionarRelatorio(relatorio);
-                        } else if (msgFinal.startsWith("RELATORIO_LOCAL:")) {
-                            // Ignora mensagens com este prefixo, pois já foram processadas localmente
-                            // Não faz nada aqui
-                        } else {
-                            adicionarMensagem(msgFinal);
-                        }
-                    });
-                }
-            }
-        } catch (IOException e) {
-            if (!socket.isClosed()) {
+                final String msg = mensagem;
                 SwingUtilities.invokeLater(() -> {
-                    adicionarMensagem("Conexão com o servidor perdida: " + e.getMessage());
-                    labelStatus.setText("Desconectado");
-                    labelStatus.setForeground(Color.RED);
+                    if (msg.startsWith("ALERTA:")) {
+                        adicionarAlerta(msg.substring(7));
+                    } else if (msg.startsWith("CHAT:")) {
+                        // Se for uma mensagem de chat, passa para o ChatInspetores processar
+                        if (chatInspetores != null && chatInspetores.processarMensagem(msg)) {
+                            // Mensagem de chat processada pelo componente
+                            System.out.println("DEBUG CLIENTE RECEBER: Mensagem CHAT processada por ChatInspetores.");
+                        } else {
+                            // Se não for mensagem de chat ou o componente não a processou, adiciona à área geral
+                            adicionarMensagem(msg);
+                            System.out.println("DEBUG CLIENTE RECEBER: Mensagem não-CHAT ou não processada pelo chat: " + msg);
+                        }
+                    } else {
+                        adicionarMensagem(msg);
+                    }
                 });
             }
+        } catch (IOException e) {
+            SwingUtilities.invokeLater(() -> {
+                adicionarMensagem("Erro na conexão: " + e.getMessage());
+                labelStatus.setText("Desconectado");
+                labelStatus.setForeground(Color.RED);
+            });
         }
     }
 
     private void adicionarMensagem(String mensagem) {
-        // Adiciona timestamp à mensagem
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
         String timestamp = sdf.format(new Date());
-
-        areaMensagens.append("[" + timestamp + "] " + mensagem + "\n");
-        // Auto-scroll para a última linha
+        areaMensagens.append(String.format("[%s] %s\n", timestamp, mensagem));
         areaMensagens.setCaretPosition(areaMensagens.getDocument().getLength());
     }
 
     private void adicionarAlerta(String mensagem) {
-        // Destaca alertas com formação especial
-        String textoAtual = areaMensagens.getText();
-        areaMensagens.setText("");
-        areaMensagens.append(textoAtual);
-
-        // Usa estilo especial para alertas
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
         String timestamp = sdf.format(new Date());
+        
+        // Estilo mais chamativo para o alerta usando HTML
+        String alertaFormatado = String.format(
+            "<font color=\"red\">\n" +
+            "========================================\n" +
+            "[%s] 🚨 **ALERTA:** %s\n" +
+            "========================================\n" +
+            "</font>",
+            timestamp, mensagem);
 
-        areaMensagens.append("\n===================== ALERTA =====================\n");
-        areaMensagens.append("[" + timestamp + "] " + mensagem + "\n");
-        areaMensagens.append("==================================================\n\n");
+        // JTextArea não suporta HTML por padrão. Usar JEditorPane para renderizar HTML.
+        // Para JTextArea, vamos apenas usar os separadores e emoji.
+         areaMensagens.append("\n"); // Adiciona uma linha em branco antes
+         areaMensagens.append("========================================\n");
+         areaMensagens.append(String.format("[%s] 🚨 ALERTA: %s\n", timestamp, mensagem));
+         areaMensagens.append("========================================\n");
+         areaMensagens.append("\n"); // Adiciona uma linha em branco depois
 
-        // Auto-scroll para a última linha
         areaMensagens.setCaretPosition(areaMensagens.getDocument().getLength());
 
-        // Adicionalmente, mostra popup de alerta
-        JOptionPane.showMessageDialog(frame,
-                mensagem,
-                "ALERTA AMBIENTAL",
-                JOptionPane.WARNING_MESSAGE);
+        // Toca um som de alerta
+        Toolkit.getDefaultToolkit().beep();
     }
 
     private void enviarMensagem() {
         String mensagem = campoMensagem.getText().trim();
-        if (!mensagem.isEmpty() && saida != null) {
+        if (!mensagem.isEmpty()) {
             saida.println(mensagem);
             campoMensagem.setText("");
         }
     }
 
     private void abrirJanelaRelatorio() {
-        JDialog dialogRelatorio = new JDialog(frame, "Criar Relatório Ambiental", true);
-        dialogRelatorio.setSize(600, 500);
-        dialogRelatorio.setLayout(new BorderLayout());
+        JDialog dialog = new JDialog(frame, "Enviar Relatório", true);
+        dialog.setSize(500, 400);
+        dialog.setLocationRelativeTo(frame);
+
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         JTextArea areaRelatorio = new JTextArea();
-        areaRelatorio.setLineWrap(true);
-        areaRelatorio.setWrapStyleWord(true);
+        areaRelatorio.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        // Modelo de relatório pré-preenchido
+        areaRelatorio.setText("Local de Monitoramento: " + localMonitorado + "\n" +
+                              "Data: " + new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date()) + "\n" +
+                              "Inspetor: " + nomeInspetor + "\n\n" +
+                              "Descrição do Evento:\n" +
+                              "--------------------\n\n" +
+                              "Impacto Ambiental:\n" +
+                              "--------------------\n\n" +
+                              "Medidas Tomadas:\n" +
+                              "--------------------\n");
+        
         JScrollPane scrollPane = new JScrollPane(areaRelatorio);
 
-        // Adiciona template básico para o relatório
-        areaRelatorio.setText("RELATÓRIO DE INSPEÇÃO AMBIENTAL\n\n" +
-                "Local Inspecionado: [Detalhar local específico]\n" +
-                "Data/Hora: [Automático]\n\n" +
-                "OBSERVAÇÕES:\n" +
-                "1. \n\n" +
-                "PARÂMETROS ANALISADOS:\n" +
-                "- pH: \n" +
-                "- Temperatura: \n" +
-                "- Oxigênio Dissolvido: \n" +
-                "- Turbidez: \n\n" +
-                "FONTES DE POLUIÇÃO IDENTIFICADAS:\n" +
-                "- \n\n" +
-                "RECOMENDAÇÕES:\n" +
-                "- \n\n" +
-                "CONCLUSÃO:\n");
+        JPanel botoesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton botaoEnviar = new JButton("Enviar");
+        JButton botaoCancelar = new JButton("Cancelar");
 
-        JPanel painelBotoes = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton btnCancelar = new JButton("Cancelar");
-        JButton btnEnviar = new JButton("Enviar Relatório");
-
-        btnCancelar.addActionListener(e -> dialogRelatorio.dispose());
-
-        btnEnviar.addActionListener(e -> {
-            String conteudoRelatorio = areaRelatorio.getText().trim();
-            if (!conteudoRelatorio.isEmpty()) {
-                if (saida != null) {
-                    // Adiciona o relatório localmente primeiro
-                    adicionarRelatorio(conteudoRelatorio);
-                    adicionarMensagem("Relatório enviado com sucesso.");
-                    
-                    // Envia apenas uma mensagem simples para o servidor
-                    saida.println("RELATORIO_ENVIADO: Um relatório ambiental foi enviado pelo inspetor " + nomeInspetor);
-                    
-                    dialogRelatorio.dispose();
-                }
+        botaoEnviar.addActionListener(e -> {
+            String relatorio = areaRelatorio.getText().trim();
+            if (!relatorio.isEmpty()) {
+                saida.println("RELATORIO:" + relatorio);
+                adicionarRelatorio(relatorio);
+                dialog.dispose();
             } else {
-                JOptionPane.showMessageDialog(dialogRelatorio,
-                        "O relatório não pode estar vazio.",
+                JOptionPane.showMessageDialog(dialog,
+                        "Por favor, preencha o relatório.",
                         "Erro", JOptionPane.ERROR_MESSAGE);
             }
         });
-    
-        painelBotoes.add(btnCancelar);
-        painelBotoes.add(btnEnviar);
 
-        dialogRelatorio.add(scrollPane, BorderLayout.CENTER);
-        dialogRelatorio.add(painelBotoes, BorderLayout.SOUTH);
+        botaoCancelar.addActionListener(e -> dialog.dispose());
 
-        dialogRelatorio.setLocationRelativeTo(frame);
-        dialogRelatorio.setVisible(true);
+        botoesPanel.add(botaoEnviar);
+        botoesPanel.add(botaoCancelar);
+
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(botoesPanel, BorderLayout.SOUTH);
+
+        dialog.add(panel);
+        dialog.setVisible(true);
     }
 
     private void abrirJanelaAlerta() {
-        String mensagemAlerta = JOptionPane.showInputDialog(frame,
-                "Digite a mensagem de alerta ambiental:",
-                "ALERTA AMBIENTAL",
-                JOptionPane.WARNING_MESSAGE);
+        JDialog dialog = new JDialog(frame, "Enviar Alerta Ambiental", true);
+        dialog.setSize(500, 400);
+        dialog.setLocationRelativeTo(frame);
 
-        if (mensagemAlerta != null && !mensagemAlerta.trim().isEmpty()) {
-            if (saida != null) {
-                saida.println("ALERTA:" + mensagemAlerta);
-            }
-        }
-    }
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-    private void abrirChatInspetores() {
-        // Abre a janela de chat entre inspetores
-        if (chatInspetores != null) {
-            chatInspetores.toggle();
-        } else {
-            JOptionPane.showMessageDialog(frame,
-                    "O chat de inspetores não está disponível no momento.",
-                    "Erro", JOptionPane.ERROR_MESSAGE);
-        }
-    }
+        JTextArea areaAlerta = new JTextArea();
+        areaAlerta.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        JScrollPane scrollPane = new JScrollPane(areaAlerta);
 
-    private void selecionarArquivo() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Selecione o arquivo para enviar");
-        fileChooser.setFileFilter(new FileNameExtensionFilter(
-                "Arquivos de Imagem e Documentos", "jpg", "png", "pdf", "txt", "doc", "docx"));
+        JPanel botoesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton botaoEnviar = new JButton("Enviar Alerta");
+        JButton botaoCancelar = new JButton("Cancelar");
 
-        int resultado = fileChooser.showOpenDialog(frame);
-        if (resultado == JFileChooser.APPROVE_OPTION) {
-            File arquivoSelecionado = fileChooser.getSelectedFile();
+        botaoEnviar.setBackground(new Color(255, 100, 100));
+        botaoEnviar.setForeground(Color.WHITE);
 
-            // Verifica o tamanho do arquivo (limitado a 10MB para este exemplo)
-            if (arquivoSelecionado.length() > 10 * 1024 * 1024) {
-                JOptionPane.showMessageDialog(frame,
-                        "O arquivo é muito grande. Tamanho máximo: 10MB",
+        botaoEnviar.addActionListener(e -> {
+            String alerta = areaAlerta.getText().trim();
+            if (!alerta.isEmpty()) {
+                // Envia o alerta para o servidor
+                saida.println("ALERTA:" + alerta);
+                // Não adiciona localmente mais, aguarda a retransmissão do servidor
+                // adicionarAlerta(alerta);
+                dialog.dispose();
+            } else {
+                JOptionPane.showMessageDialog(dialog,
+                        "Por favor, descreva o alerta ambiental.",
                         "Erro", JOptionPane.ERROR_MESSAGE);
-                return;
             }
+        });
 
-            // Inicia o envio em uma thread separada para não bloquear a interface
-            new Thread(() -> {
-                try {
-                    // Notifica o servidor que está iniciando uma transferência
-                    saida.println("ARQUIVO:" + arquivoSelecionado.getName() + ":" + arquivoSelecionado.length());
+        botaoCancelar.addActionListener(e -> dialog.dispose());
 
-                    // Aguarda confirmação do servidor para iniciar transferência
-                    // Em uma implementação real, deve-se esperar por uma resposta específica do servidor
-                    Thread.sleep(1000);
+        botoesPanel.add(botaoEnviar);
+        botoesPanel.add(botaoCancelar);
 
-                    // Cria um socket temporário para transferência (em um caso real, seria por outro canal)
-                    Socket socketTransferencia = new Socket(SERVIDOR_IP, 9876);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(botoesPanel, BorderLayout.SOUTH);
 
-                    // Usa a classe de transferência para enviar o arquivo
-                    boolean sucesso = TransferenciaArquivos.enviarArquivo(
-                            socketTransferencia,
-                            arquivoSelecionado,
-                            "CENTRAL");
-
-                    socketTransferencia.close();
-
-                    if (sucesso) {
-                        SwingUtilities.invokeLater(() -> {
-                            adicionarMensagem("Arquivo " + arquivoSelecionado.getName() + " enviado com sucesso.");
-                        });
-                    } else {
-                        SwingUtilities.invokeLater(() -> {
-                            adicionarMensagem("Falha ao enviar o arquivo " + arquivoSelecionado.getName());
-                        });
-                    }
-
-                } catch (Exception e) {
-                    SwingUtilities.invokeLater(() -> {
-                        adicionarMensagem("Erro ao enviar arquivo: " + e.getMessage());
-                    });
-                }
-            }).start();
-        }
+        dialog.add(panel);
+        dialog.setVisible(true);
     }
 
     private void desconectar() {
         try {
+            if (webcamManager != null) {
+                webcamManager.fechar();
+            }
+            
+            if (multicastManager != null) {
+                multicastManager.fechar();
+            }
+            
             if (saida != null) {
                 saida.println("SAIR");
             }
-
+    
             if (socket != null && !socket.isClosed()) {
                 socket.close();
             }
@@ -498,22 +525,13 @@ public class ClienteMonitoramento {
         }
     }
 
-    // Novo método para adicionar relatórios formatados
     private void adicionarRelatorio(String relatorio) {
-        // Adiciona timestamp ao relatório
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
         String timestamp = sdf.format(new Date());
-
-        areaMensagens.append("\n================ RELATÓRIO AMBIENTAL ================\n");
-        areaMensagens.append("[" + timestamp + "]\n\n");
-        areaMensagens.append(relatorio + "\n");
-        areaMensagens.append("==================================================\n\n");
-
-        // Auto-scroll para a última linha
+        areaMensagens.append(String.format("[%s] 📝 RELATÓRIO ENVIADO:\n%s\n", timestamp, relatorio));
         areaMensagens.setCaretPosition(areaMensagens.getDocument().getLength());
     }
 
-    // Getters para uso pelo ChatInspetores
     public String getNomeInspetor() {
         return nomeInspetor;
     }
@@ -524,5 +542,130 @@ public class ClienteMonitoramento {
 
     public JFrame getFrame() {
         return frame;
+    }
+
+    private void enviarRelatorioEmail() {
+        JDialog dialog = new JDialog(frame, "Enviar Relatório por E-mail", true);
+        dialog.setSize(500, 400);
+        dialog.setLocationRelativeTo(frame);
+
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JPanel formPanel = new JPanel(new GridLayout(4, 1, 5, 5));
+        
+        JTextField campoDestinatario = new JTextField();
+        JTextField campoAssunto = new JTextField();
+        JTextArea areaMensagem = new JTextArea();
+        JScrollPane scrollPane = new JScrollPane(areaMensagem);
+
+        formPanel.add(new JLabel("Destinatário:"));
+        formPanel.add(campoDestinatario);
+        formPanel.add(new JLabel("Assunto:"));
+        formPanel.add(campoAssunto);
+
+        JPanel botoesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton botaoEnviar = new JButton("Enviar");
+        JButton botaoCancelar = new JButton("Cancelar");
+
+        botaoEnviar.addActionListener(e -> {
+            String destinatario = campoDestinatario.getText().trim();
+            String assunto = campoAssunto.getText().trim();
+            String mensagem = areaMensagem.getText().trim();
+
+            if (destinatario.isEmpty() || assunto.isEmpty() || mensagem.isEmpty()) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Por favor, preencha todos os campos.",
+                        "Erro", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            try {
+                EmailSender.enviarEmail(destinatario, assunto, mensagem, "smtp.gmail.com", "587");
+                JOptionPane.showMessageDialog(dialog,
+                        "E-mail enviado com sucesso!",
+                        "Sucesso", JOptionPane.INFORMATION_MESSAGE);
+                dialog.dispose();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(dialog,
+                        "Erro ao enviar e-mail: " + ex.getMessage(),
+                        "Erro", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        botaoCancelar.addActionListener(e -> dialog.dispose());
+
+        botoesPanel.add(botaoEnviar);
+        botoesPanel.add(botaoCancelar);
+
+        panel.add(formPanel, BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(botoesPanel, BorderLayout.SOUTH);
+
+        dialog.add(panel);
+        dialog.setVisible(true);
+    }
+
+    private void abrirSeletorEmoticons() {
+        String[] emoticons = {
+            "😊", "😂", "❤️", "👍", "🎉", "🔥", "⭐", "💯",
+            "😎", "🤔", "😢", "😡", "🙏", "👏", "🎯", "💪"
+        };
+
+        JDialog dialog = new JDialog(frame, "Selecionar Emoticon", true);
+        dialog.setSize(300, 200);
+        dialog.setLocationRelativeTo(frame);
+
+        JPanel panel = new JPanel(new GridLayout(4, 4, 5, 5));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        for (String emoticon : emoticons) {
+            JButton botao = new JButton(emoticon);
+            botao.setFont(new Font("Dialog", Font.PLAIN, 20));
+            botao.addActionListener(e -> {
+                campoMensagem.setText(campoMensagem.getText() + emoticon);
+                dialog.dispose();
+            });
+            panel.add(botao);
+        }
+
+        dialog.add(panel);
+        dialog.setVisible(true);
+    }
+
+    private void selecionarArquivo() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new FileNameExtensionFilter(
+            "Arquivos de Imagem", "jpg", "jpeg", "png", "gif"));
+        
+        if (fileChooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
+            File arquivo = fileChooser.getSelectedFile();
+            try {
+                // Cria um novo socket para transferência de arquivos
+                Socket socketArquivo = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
+                if (TransferenciaArquivos.enviarArquivo(socketArquivo, arquivo, "CENTRAL")) {
+                    adicionarMensagem("Arquivo enviado com sucesso: " + arquivo.getName());
+                } else {
+                    JOptionPane.showMessageDialog(frame,
+                        "Erro ao enviar arquivo.",
+                        "Erro", JOptionPane.ERROR_MESSAGE);
+                }
+                socketArquivo.close();
+            } catch (IOException e) {
+                JOptionPane.showMessageDialog(frame,
+                    "Erro ao conectar para envio de arquivo: " + e.getMessage(),
+                    "Erro", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private void abrirChatInspetores() {
+        if (chatInspetores != null) {
+            chatInspetores.mostrar();
+        } else {
+            JOptionPane.showMessageDialog(frame,
+                "Chat de inspetores não disponível. Verifique sua conexão.",
+                "Erro", JOptionPane.ERROR_MESSAGE);
+        }
     }
 }

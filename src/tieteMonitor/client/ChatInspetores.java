@@ -40,6 +40,9 @@ public class ChatInspetores {
         this.saida = saida;
         this.listaInspetores = new ArrayList<>();
 
+        // Configura a interface primeiro
+        configurarInterface();
+
         // Solicita a lista de inspetores ao servidor
         solicitarListaInspetores();
     }
@@ -140,6 +143,10 @@ public class ChatInspetores {
      */
     private void atualizarListaInspetores() {
         SwingUtilities.invokeLater(() -> {
+            if (comboInspetores == null) {
+                return; // Retorna se o combo ainda não foi inicializado
+            }
+            
             // Guarda a seleção atual
             String selecaoAtual = (String) comboInspetores.getSelectedItem();
 
@@ -172,13 +179,28 @@ public class ChatInspetores {
     private void enviarMensagem() {
         String mensagem = campoMensagem.getText().trim();
         if (!mensagem.isEmpty() && saida != null) {
-            // Formata: CHAT:PARA:destinatario:mensagem
+            // Obtém o destinatário selecionado de forma segura
             String destinatario = (String) comboInspetores.getSelectedItem();
-            if (destinatario == null) destinatario = "Todos";
+            
+            // Remove explicitamente o ':' inicial se existir
+            if (destinatario != null && destinatario.startsWith(":")) {
+                destinatario = destinatario.substring(1);
+            }
 
-            saida.println("CHAT:PARA:" + destinatario + ":" + mensagem);
+            if (destinatario == null || destinatario.trim().isEmpty()) {
+                destinatario = "Todos"; // Garante que sempre haja um destinatário válido
+            }
 
-            // Adiciona mensagem na área de chat
+            // Formata a mensagem
+            String mensagemParaEnviar = "CHAT:PARA:" + destinatario + ":" + mensagem;
+            
+            // Log de depuração no cliente
+            System.out.println("DEBUG CLIENTE: Enviando para o servidor: " + mensagemParaEnviar);
+
+            // Envia a mensagem
+            saida.println(mensagemParaEnviar);
+
+            // Adiciona mensagem na área de chat (localmente)
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
             String timestamp = sdf.format(new Date());
 
@@ -236,13 +258,21 @@ public class ChatInspetores {
     private void processarListaInspetores(String listaStr) {
         listaInspetores.clear();
 
-        // Divide a string por vírgulas
-        String[] inspetores = listaStr.split(",");
-        for (String inspetor : inspetores) {
-            if (!inspetor.trim().isEmpty()) {
-                listaInspetores.add(inspetor.trim());
+        // Divide a string por vírgulas e filtra/limpa entradas
+        if (listaStr != null && !listaStr.trim().isEmpty()) {
+            String[] inspetores = listaStr.split(",");
+            for (String inspetor : inspetores) {
+                // Limpeza rigorosa: remove espaços em branco e caracteres não visíveis
+                String nomeLimpo = inspetor.trim().replaceAll("[^\\p{Print}\\p{Space}]", "").trim();
+                
+                if (!nomeLimpo.isEmpty() && !nomeLimpo.equals(clientePrincipal.getNomeInspetor())) {
+                    listaInspetores.add(nomeLimpo);
+                }
             }
         }
+
+        // Ordena a lista de inspetores alfabeticamente
+        Collections.sort(listaInspetores);
 
         atualizarListaInspetores();
     }
@@ -250,44 +280,40 @@ public class ChatInspetores {
     /**
      * Processa mensagem recebida de outro inspetor
      *
-     * @param dados Dados da mensagem no formato "remetente:mensagem"
+     * @param dados Dados da mensagem no formato "remetente:mensagem" (ou pode incluir [PRIVADO])
      */
     private void processarMensagemRecebida(String dados) {
-        // Extrai remetente e mensagem
-        int separador = dados.indexOf(':');
-        if (separador > 0) {
-            String remetente = dados.substring(0, separador);
-            String mensagem = dados.substring(separador + 1);
-
-            // Adiciona mensagem na área de chat
-            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-            String timestamp = sdf.format(new Date());
-
-            // Se a janela não estiver aberta, abre automaticamente
-            if (janela == null || !janela.isVisible()) {
-                toggle();
+        System.out.println("DEBUG CHAT CLIENTE: Processando mensagem recebida: " + dados); // Log de depuração
+        
+        String[] partes = dados.split(":", 2);
+        if (partes.length == 2) {
+            String remetente = partes[0];
+            String mensagem = partes[1];
+            
+            // Verifica se é uma mensagem privada
+            boolean isPrivada = mensagem.endsWith(" [PRIVADO]");
+            if (isPrivada) {
+                mensagem = mensagem.substring(0, mensagem.length() - 10); // Remove o [PRIVADO]
             }
-
-            // Adiciona a mensagem
-            SwingUtilities.invokeLater(() -> {
-                areaChat.append("[" + timestamp + "] " + remetente + ": " + mensagem + "\n");
-                // Auto-scroll
-                areaChat.setCaretPosition(areaChat.getDocument().getLength());
-            });
-
-            // Notifica o usuário
-            if (!janela.isFocused()) {
-                janela.toFront();
-                janela.requestFocus();
-                Toolkit.getDefaultToolkit().beep();
+            
+            String mensagemFormatada = String.format("[%s] %s: %s", 
+                new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()),
+                remetente,
+                mensagem);
+            
+            if (isPrivada) {
+                mensagemFormatada = "[PRIVADO] " + mensagemFormatada;
             }
+            
+            areaChat.append(mensagemFormatada + "\n");
+            areaChat.setCaretPosition(areaChat.getDocument().getLength());
         }
     }
 
     /**
-     * Adiciona um inspetor à lista
+     * Adiciona um inspetor à lista e atualiza a interface
      *
-     * @param inspetor Nome do inspetor a adicionar
+     * @param inspetor O nome do inspetor a ser adicionado
      */
     private void adicionarInspetor(String inspetor) {
         // Verifica se já existe
@@ -297,15 +323,17 @@ public class ChatInspetores {
 
             // Notifica na área de chat, se aberta
             if (janela != null && janela.isVisible()) {
-                areaChat.append("[Sistema] Inspetor conectado: " + inspetor + "\n");
+                SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+                String timestamp = sdf.format(new Date());
+                areaChat.append("[" + timestamp + "] [Sistema] Inspetor conectado: " + inspetor + "\n");
             }
         }
     }
 
     /**
-     * Remove um inspetor da lista
+     * Remove um inspetor da lista e atualiza a interface
      *
-     * @param inspetor Nome do inspetor a remover
+     * @param inspetor O nome do inspetor a ser removido
      */
     private void removerInspetor(String inspetor) {
         listaInspetores.remove(inspetor);
@@ -313,7 +341,9 @@ public class ChatInspetores {
 
         // Notifica na área de chat, se aberta
         if (janela != null && janela.isVisible()) {
-            areaChat.append("[Sistema] Inspetor desconectado: " + inspetor + "\n");
+            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+            String timestamp = sdf.format(new Date());
+            areaChat.append("[" + timestamp + "] [Sistema] Inspetor desconectado: " + inspetor + "\n");
         }
     }
 
@@ -380,5 +410,16 @@ public class ChatInspetores {
         dialog.add(scrollEmojis, BorderLayout.CENTER);
         dialog.setLocationRelativeTo(janela);
         dialog.setVisible(true);
+    }
+
+    /**
+     * Mostra a janela do chat
+     */
+    public void mostrar() {
+        if (janela == null) {
+            configurarInterface();
+        }
+        janela.setVisible(true);
+        solicitarListaInspetores(); // Atualiza a lista ao abrir
     }
 }
