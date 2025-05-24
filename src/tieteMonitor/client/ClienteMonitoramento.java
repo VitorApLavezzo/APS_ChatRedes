@@ -45,7 +45,7 @@ public class ClienteMonitoramento {
     private ChatInspetores chatInspetores;
     
     // Gerenciadores de recursos
-    private WebcamManager webcamManager;
+    private WebcamManager webcamManager = null; // Inicializar como null, será criado após a conexão
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -67,15 +67,6 @@ public class ClienteMonitoramento {
 
         // Configura a interface gráfica
         configurarInterface();
-
-        // Inicializa o gerenciador de webcam
-        try {
-            webcamManager = new WebcamManager();
-        } catch (com.github.sarxos.webcam.WebcamException e) {
-            webcamManager = null;
-            adicionarMensagem("Erro ao inicializar webcam. Função desabilitada: " + e.getMessage());
-            System.err.println("Erro ao inicializar webcam: " + e.getMessage());
-        }
 
         // Conecta ao servidor
         conectarServidor();
@@ -244,6 +235,12 @@ public class ClienteMonitoramento {
         botaoChat.addActionListener(e -> abrirChatInspetores());
         painelBotoes.add(botaoChat);
 
+        // Novo botão para compartilhar vídeo
+        JButton botaoCompartilharVideo = new JButton("Compartilhar Vídeo");
+        botaoCompartilharVideo.setIcon(new ImageIcon("src/resources/webcam.png")); // Assumindo que há um ícone de webcam
+        botaoCompartilharVideo.addActionListener(e -> toggleCompartilharVideo());
+        painelBotoes.add(botaoCompartilharVideo);
+
         // Barra de menu
         JMenuBar menuBar = new JMenuBar();
         JMenu menuArquivo = new JMenu("Arquivo");
@@ -304,6 +301,17 @@ public class ClienteMonitoramento {
             // Inicializa componente de chat entre inspetores
             chatInspetores = new ChatInspetores(this, socket, saida);
             
+            // Inicializa o gerenciador de webcam AQUI, APÓS obter o PrintWriter 'saida'
+            try {
+                webcamManager = new WebcamManager(saida); // Passa o PrintWriter 'saida'
+            } catch (com.github.sarxos.webcam.WebcamException e) {
+                 webcamManager = null;
+                 SwingUtilities.invokeLater(() -> {
+                     adicionarMensagem("Erro ao inicializar webcam. Função de vídeo desabilitada: " + e.getMessage());
+                 });
+                 System.err.println("Erro ao inicializar webcam: " + e.getMessage());
+            }
+    
             // Inicializa o gerenciador multicast
             multicastManager = new MulticastManager(mensagem -> {
                 if (mensagem.startsWith("ALERTA_MULTICAST:")) {
@@ -552,11 +560,23 @@ public class ClienteMonitoramento {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JPanel formPanel = new JPanel(new GridLayout(4, 1, 5, 5));
+        JPanel formPanel = new JPanel(new GridLayout(4, 1, 5, 5)); // Campos para destinatário, assunto, etc.
         
         JTextField campoDestinatario = new JTextField();
         JTextField campoAssunto = new JTextField();
-        JTextArea areaMensagem = new JTextArea();
+        JTextArea areaMensagem = new JTextArea(); // Área do corpo do e-mail
+        areaMensagem.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        // Preencher com o modelo de relatório
+        areaMensagem.setText("Local de Monitoramento: " + localMonitorado + "\n" +
+                             "Data: " + new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date()) + "\n" +
+                             "Inspetor: " + nomeInspetor + "\n\n" +
+                             "Descrição do Evento:\n" +
+                             "--------------------\n\n" +
+                             "Impacto Ambiental:\n" +
+                             "--------------------\n\n" +
+                             "Medidas Tomadas:\n" +
+                             "--------------------\n");
+        
         JScrollPane scrollPane = new JScrollPane(areaMensagem);
 
         formPanel.add(new JLabel("Destinatário:"));
@@ -565,30 +585,45 @@ public class ClienteMonitoramento {
         formPanel.add(campoAssunto);
 
         JPanel botoesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton botaoEnviar = new JButton("Enviar");
+        JButton botaoEnviar = new JButton("Enviar"); // Botão de enviar
         JButton botaoCancelar = new JButton("Cancelar");
 
         botaoEnviar.addActionListener(e -> {
             String destinatario = campoDestinatario.getText().trim();
             String assunto = campoAssunto.getText().trim();
-            String mensagem = areaMensagem.getText().trim();
+            String corpo = areaMensagem.getText().trim();
 
-            if (destinatario.isEmpty() || assunto.isEmpty() || mensagem.isEmpty()) {
+            if (destinatario.isEmpty() || assunto.isEmpty() || corpo.isEmpty()) {
                 JOptionPane.showMessageDialog(dialog,
-                        "Por favor, preencha todos os campos.",
+                        "Por favor, preencha todos os campos de destinatário, assunto e corpo.",
                         "Erro", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            try {
-                EmailSender.enviarEmail(destinatario, assunto, mensagem, "smtp.gmail.com", "587");
+            // **AQUI VOCÊ INSERE SEU EMAIL GMAIL E A SENHA DE APP**
+            // Substitua "SEU_EMAIL_GMAIL@gmail.com" pelo seu email
+            // Substitua "SUA_SENHA_DE_APP" pela senha de app gerada ou senha de acesso menos seguro
+            String remetente = "valavezzo@gmail.com"; // <--- SEU EMAIL
+            String senha = "peuf oshg zmnp pkqj"; // <--- SUA SENHA DE APP
+
+            // Verifica se as credenciais foram atualizadas (evita tentar enviar com placeholders)
+            if (remetente.equals("SEU_EMAIL_GMAIL@gmail.com") || senha.equals("SUA_SENHA_DE_APP")) {
+                 JOptionPane.showMessageDialog(dialog,
+                        "Por favor, atualize seu email e senha no código (EmailSender).", "Erro de Configuração", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Tenta enviar o e-mail
+            boolean sucesso = EmailSender.enviarEmail(remetente, senha, destinatario, assunto, corpo);
+
+            if (sucesso) {
                 JOptionPane.showMessageDialog(dialog,
                         "E-mail enviado com sucesso!",
                         "Sucesso", JOptionPane.INFORMATION_MESSAGE);
                 dialog.dispose();
-            } catch (Exception ex) {
+            } else {
                 JOptionPane.showMessageDialog(dialog,
-                        "Erro ao enviar e-mail: " + ex.getMessage(),
+                        "Erro ao enviar e-mail. Verifique as credenciais ou as configurações de segurança da sua conta Google.",
                         "Erro", JOptionPane.ERROR_MESSAGE);
             }
         });
@@ -665,6 +700,19 @@ public class ClienteMonitoramento {
         } else {
             JOptionPane.showMessageDialog(frame,
                 "Chat de inspetores não disponível. Verifique sua conexão.",
+                "Erro", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void toggleCompartilharVideo() {
+        // Implemente a lógica para alternar o compartilhamento de vídeo
+        // Isso pode envolver a inicialização ou encerramento da captura de vídeo pela webcam
+        // ou a troca entre compartilhar e parar de compartilhar o vídeo
+        if (webcamManager != null) {
+            webcamManager.toggleCompartilharVideo();
+        } else {
+            JOptionPane.showMessageDialog(frame,
+                "Webcam não disponível. Função desabilitada.",
                 "Erro", JOptionPane.ERROR_MESSAGE);
         }
     }
