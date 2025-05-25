@@ -21,7 +21,6 @@ bin/
 /dist/
 /nbdist/
 /.nb-gradle/
-/ngrok/
 
 ### VS Code ###
 .vscode/
