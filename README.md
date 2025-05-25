@@ -48,7 +48,7 @@ APS_ChatRedes/
 
 1. Clone o repositório
 2. Execute o script `download_deps.bat` para baixar as dependências
-3. Execute o script `compile.bat` para compilar o projeto
+3. Execute o script `compile.bat` para compilar o projeto (necessario ajustar conforme versão do java instalado)
 4. Configure o ngrok para tunelamento TCP na porta 12345
 
 ## 🚀 Executando o Projeto

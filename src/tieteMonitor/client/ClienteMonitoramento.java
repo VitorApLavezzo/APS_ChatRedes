@@ -202,7 +202,7 @@ public class ClienteMonitoramento {
         painelEntrada.add(botaoEmoticons, BorderLayout.WEST);
         
         botaoEnviar = new JButton("Enviar");
-        botaoEnviar.setIcon(new ImageIcon(new ImageIcon("src/resources/send.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoEnviar.setIcon(new ImageIcon(new ImageIcon("src/resources/send.png").getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
         botaoEnviar.setPreferredSize(new Dimension(100, 30));
         botaoEnviar.addActionListener(e -> enviarMensagem());
         painelEntrada.add(campoMensagem, BorderLayout.CENTER);
@@ -211,38 +211,38 @@ public class ClienteMonitoramento {
         // Painel de botões
         JPanel painelBotoes = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         botaoRelatorio = new JButton("Enviar Relatório");
-        botaoRelatorio.setIcon(new ImageIcon(new ImageIcon("src/resources/report.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoRelatorio.setIcon(new ImageIcon(new ImageIcon("src/resources/report.png").getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
         botaoRelatorio.setPreferredSize(new Dimension(150, 30));
         botaoRelatorio.addActionListener(e -> abrirJanelaRelatorio());
         painelBotoes.add(botaoRelatorio);
 
         botaoAlerta = new JButton("Alerta Ambiental");
         botaoAlerta.setBackground(new Color(255, 100, 100));
-        botaoAlerta.setIcon(new ImageIcon(new ImageIcon("src/resources/alert.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoAlerta.setIcon(new ImageIcon(new ImageIcon("src/resources/alert.png").getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
         botaoAlerta.setPreferredSize(new Dimension(150, 30));
         botaoAlerta.addActionListener(e -> abrirJanelaAlerta());
         painelBotoes.add(botaoAlerta);
 
         botaoEmail = new JButton("Enviar E-mail");
-        botaoEmail.setIcon(new ImageIcon(new ImageIcon("src/resources/email.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoEmail.setIcon(new ImageIcon(new ImageIcon("src/resources/email.png").getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
         botaoEmail.setPreferredSize(new Dimension(150, 30));
         botaoEmail.addActionListener(e -> enviarRelatorioEmail());
         painelBotoes.add(botaoEmail);
 
         JButton botaoArquivos = new JButton("Arquivos Recebidos");
-        botaoArquivos.setIcon(new ImageIcon(new ImageIcon("src/resources/files.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoArquivos.setIcon(new ImageIcon(new ImageIcon("src/resources/files.png").getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
         botaoArquivos.setPreferredSize(new Dimension(150, 30));
         botaoArquivos.addActionListener(e -> abrirListaArquivos());
         painelBotoes.add(botaoArquivos);
 
         JButton botaoChat = new JButton("Chat Inspetores");
-        botaoChat.setIcon(new ImageIcon(new ImageIcon("src/resources/chat.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoChat.setIcon(new ImageIcon(new ImageIcon("src/resources/chat.png").getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
         botaoChat.setPreferredSize(new Dimension(150, 30));
         botaoChat.addActionListener(e -> abrirChatInspetores());
         painelBotoes.add(botaoChat);
 
         JButton botaoEnviarArquivo = new JButton("Enviar Arquivo");
-        botaoEnviarArquivo.setIcon(new ImageIcon(new ImageIcon("src/resources/file.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoEnviarArquivo.setIcon(new ImageIcon(new ImageIcon("src/resources/file.png").getImage().getScaledInstance(16, 16, Image.SCALE_SMOOTH)));
         botaoEnviarArquivo.setPreferredSize(new Dimension(150, 30));
         botaoEnviarArquivo.addActionListener(e -> iniciarEnvioArquivo());
         painelBotoes.add(botaoEnviarArquivo);
@@ -926,7 +926,6 @@ public class ClienteMonitoramento {
     }
 
     // Método para atualizar a lista de inspetores (chamado pelo ChatInspetores)
-    // Este método DEVE garantir que "Central" e "Todos os Inspetores" estejam sempre presentes.
     public void atualizarListaInspetores(List<String> listaRecebidaDoServidor) {
         SwingUtilities.invokeLater(() -> {
             inspetoresConectados.clear(); // Limpa a lista atual
@@ -945,12 +944,6 @@ public class ClienteMonitoramento {
                     }
                 }
             }
-
-            // Opcional: Ordenar a lista (exceto Central e Todos, se quiser mantê-los no topo)
-            // List<String> paraOrdenar = new ArrayList<>(inspetoresConectados.subList(2, inspetoresConectados.size()));
-            // Collections.sort(paraOrdenar);
-            // inspetoresConectados = new ArrayList<>(inspetoresConectados.subList(0, 2));
-            // inspetoresConectados.addAll(paraOrdenar);
 
             // DEBUG: Exibir lista atualizada
             System.out.println("DEBUG CLIENTE: Lista de inspetores atualizada: " + inspetoresConectados);
