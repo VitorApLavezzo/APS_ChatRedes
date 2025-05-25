@@ -4,6 +4,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.*;
 import java.util.UUID;
+import java.util.Base64;
 
 /**
  * Utilitário para transferência de arquivos entre clientes e servidor
@@ -26,40 +27,37 @@ public class TransferenciaArquivos {
     }
 
     /**
-     * Envia um arquivo pelo socket
-     * @param socket Socket conectado ao destinatário
+     * Envia um arquivo para o servidor
+     * @param socket Socket de conexão
      * @param arquivo Arquivo a ser enviado
-     * @param destinatario Identificador do destinatário (nome do inspetor ou "CENTRAL")
+     * @param destinatario Destinatário do arquivo
+     * @param remetente Nome do inspetor remetente
      * @return true se o envio foi bem sucedido, false caso contrário
      */
-    public static boolean enviarArquivo(Socket socket, File arquivo, String destinatario) {
-        try (
-                OutputStream out = socket.getOutputStream();
-                DataOutputStream dataOut = new DataOutputStream(out);
-                FileInputStream fileIn = new FileInputStream(arquivo)
-        ) {
-            // Envia metadados do arquivo
-            dataOut.writeUTF(destinatario);
-            dataOut.writeUTF(arquivo.getName());
-            dataOut.writeLong(arquivo.length());
-
+    public static boolean enviarArquivo(Socket socket, File arquivo, String destinatario, String remetente) {
+        try {
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            
+            // Envia o comando de arquivo com nome, destinatário e remetente
+            out.writeUTF("ARQUIVO:" + arquivo.getName() + ":" + destinatario + ":" + remetente);
+            
+            // Envia o tamanho do arquivo
+            out.writeLong(arquivo.length());
+            
             // Envia o conteúdo do arquivo
-            byte[] buffer = new byte[BUFFER_SIZE];
+            FileInputStream fileIn = new FileInputStream(arquivo);
+            byte[] buffer = new byte[8192];
             int bytesRead;
-            long totalEnviado = 0;
-            long tamanhoTotal = arquivo.length();
-
             while ((bytesRead = fileIn.read(buffer)) != -1) {
-                dataOut.write(buffer, 0, bytesRead);
-                totalEnviado += bytesRead;
-
-                // Poderia atualizar uma barra de progresso aqui
-                System.out.println("Progresso: " + (totalEnviado * 100 / tamanhoTotal) + "%");
+                out.write(buffer, 0, bytesRead);
             }
-
-            dataOut.flush();
-            return true;
-
+            fileIn.close();
+            
+            // Aguarda confirmação do servidor
+            String resposta = in.readUTF();
+            return resposta.equals("ARQUIVO_RECEBIDO");
+            
         } catch (IOException e) {
             System.err.println("Erro ao enviar arquivo: " + e.getMessage());
             return false;
@@ -67,49 +65,77 @@ public class TransferenciaArquivos {
     }
 
     /**
-     * Recebe um arquivo pelo socket
-     * @param socket Socket conectado ao remetente
-     * @param diretorioDestino Diretório onde o arquivo será salvo
-     * @return Arquivo recebido ou null em caso de erro
+     * Recebe um arquivo do servidor
+     * @param socket Socket de conexão
+     * @param nomeArquivo Nome do arquivo a ser recebido
+     * @param pastaDestino Pasta onde o arquivo será salvo
+     * @return true se o download foi bem sucedido, false caso contrário
      */
-    public static File receberArquivo(Socket socket, String diretorioDestino) {
-        try (
-                InputStream in = socket.getInputStream();
-                DataInputStream dataIn = new DataInputStream(in)
-        ) {
-            // Recebe metadados do arquivo
-            String remetente = dataIn.readUTF();
-            String nomeArquivo = dataIn.readUTF();
-            long tamanhoArquivo = dataIn.readLong();
-
-            // Cria um nome temporário para evitar colisões
-            String nomeTemporario = UUID.randomUUID().toString() + "_" + nomeArquivo;
-            File arquivoDestino = new File(diretorioDestino, nomeTemporario);
-
-            // Cria o arquivo de destino
-            try (FileOutputStream fileOut = new FileOutputStream(arquivoDestino)) {
-                byte[] buffer = new byte[BUFFER_SIZE];
-                int bytesRead;
-                long totalRecebido = 0;
-
-                // Recebe o conteúdo do arquivo
-                while (totalRecebido < tamanhoArquivo &&
-                        (bytesRead = dataIn.read(buffer, 0, (int) Math.min(buffer.length, tamanhoArquivo - totalRecebido))) != -1) {
-                    fileOut.write(buffer, 0, bytesRead);
-                    totalRecebido += bytesRead;
-
-                    // Poderia atualizar uma barra de progresso aqui
-                    System.out.println("Progresso: " + (totalRecebido * 100 / tamanhoArquivo) + "%");
-                }
-
-                fileOut.flush();
+    public static boolean receberArquivo(Socket socket, String nomeArquivo, String pastaDestino) {
+        try {
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+            
+            // Lê o tamanho do arquivo
+            long tamanhoArquivo = in.readLong();
+            System.out.println("Tamanho do arquivo recebido: " + tamanhoArquivo + " bytes");
+            
+            // Se o tamanho for 0, o arquivo não existe no servidor
+            if (tamanhoArquivo == 0) {
+                System.err.println("Arquivo não encontrado no servidor");
+                return false;
             }
-
-            return arquivoDestino;
-
+            
+            // Cria o arquivo de destino no local escolhido pelo usuário
+            File arquivoDestino = new File(pastaDestino, nomeArquivo);
+            System.out.println("Salvando arquivo em: " + arquivoDestino.getAbsolutePath());
+            
+            // Cria o arquivo e escreve o conteúdo
+            try (FileOutputStream fileOut = new FileOutputStream(arquivoDestino)) {
+                byte[] buffer = new byte[8192];
+                long bytesRestantes = tamanhoArquivo;
+                int bytesLidos;
+                long totalRecebido = 0;
+                
+                while (bytesRestantes > 0) {
+                    bytesLidos = in.read(buffer, 0, (int) Math.min(buffer.length, bytesRestantes));
+                    if (bytesLidos == -1) {
+                        System.err.println("Conexão fechada inesperadamente");
+                        break;
+                    }
+                    fileOut.write(buffer, 0, bytesLidos);
+                    bytesRestantes -= bytesLidos;
+                    totalRecebido += bytesLidos;
+                    System.out.println("Recebidos " + totalRecebido + " de " + tamanhoArquivo + " bytes");
+                }
+                
+                // Verifica se todos os bytes foram lidos
+                if (bytesRestantes > 0) {
+                    System.err.println("Erro: arquivo incompleto. Faltam " + bytesRestantes + " bytes");
+                    return false;
+                }
+                
+                fileOut.flush(); // Garante que todos os dados sejam escritos
+            }
+            
+            System.out.println("Arquivo salvo com sucesso em: " + arquivoDestino.getAbsolutePath());
+            
+            // Envia confirmação para o servidor
+            try {
+                out.writeUTF("ARQUIVO_RECEBIDO");
+                out.flush(); // Garante que a confirmação seja enviada
+                System.out.println("Confirmação enviada para o servidor");
+            } catch (IOException e) {
+                System.err.println("Erro ao enviar confirmação para o servidor: " + e.getMessage());
+                return false;
+            }
+            
+            return true;
+            
         } catch (IOException e) {
             System.err.println("Erro ao receber arquivo: " + e.getMessage());
-            return null;
+            e.printStackTrace();
+            return false;
         }
     }
 
@@ -167,6 +193,73 @@ public class TransferenciaArquivos {
 
         } catch (IOException e) {
             System.err.println("Erro ao enviar arquivo: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Envia um arquivo solicitado para o cliente (download)
+     * @param socket Socket de conexão
+     * @param nomeArquivo Nome do arquivo a ser enviado
+     * @param pastaOrigem Pasta onde o arquivo está salvo
+     * @return true se o envio foi bem sucedido, false caso contrário
+     */
+    public static boolean enviarArquivoParaCliente(Socket socket, String nomeArquivo, String pastaOrigem) {
+        try {
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            
+            // Verifica se o arquivo existe usando caminho absoluto
+            File pasta = new File(pastaOrigem);
+            File arquivo = new File(pasta, nomeArquivo);
+            
+            System.out.println("Tentando encontrar arquivo em: " + arquivo.getAbsolutePath());
+            
+            if (!arquivo.exists() || !arquivo.isFile()) {
+                System.err.println("Arquivo não encontrado: " + arquivo.getAbsolutePath());
+                out.writeLong(0); // Indica que o arquivo não existe
+                return false;
+            }
+            
+            System.out.println("Arquivo encontrado: " + arquivo.getAbsolutePath() + " (tamanho: " + arquivo.length() + " bytes)");
+            
+            // Envia o tamanho do arquivo
+            out.writeLong(arquivo.length());
+            out.flush(); // Garante que o tamanho seja enviado
+            
+            // Envia o conteúdo do arquivo
+            try (FileInputStream fileIn = new FileInputStream(arquivo)) {
+                byte[] buffer = new byte[8192];
+                int bytesLidos;
+                long totalEnviado = 0;
+                
+                while ((bytesLidos = fileIn.read(buffer)) != -1) {
+                    out.write(buffer, 0, bytesLidos);
+                    totalEnviado += bytesLidos;
+                    System.out.println("Enviados " + totalEnviado + " de " + arquivo.length() + " bytes");
+                }
+                out.flush(); // Garante que todos os dados sejam enviados
+            }
+            
+            // Aguarda confirmação do cliente
+            try {
+                String confirmacao = in.readUTF();
+                System.out.println("Confirmação recebida do cliente: " + confirmacao);
+                if (!confirmacao.equals("ARQUIVO_RECEBIDO")) {
+                    System.err.println("Cliente não confirmou recebimento do arquivo");
+                    return false;
+                }
+            } catch (IOException e) {
+                System.err.println("Erro ao aguardar confirmação do cliente: " + e.getMessage());
+                return false;
+            }
+            
+            System.out.println("Arquivo enviado com sucesso e confirmado pelo cliente");
+            return true;
+            
+        } catch (IOException e) {
+            System.err.println("Erro ao enviar arquivo: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }

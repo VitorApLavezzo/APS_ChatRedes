@@ -6,6 +6,7 @@ import java.net.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
+import java.util.ArrayList;
 import javax.swing.*;
 
 /**
@@ -15,7 +16,8 @@ import javax.swing.*;
 public class ChatInspetores {
     private ClienteMonitoramento clientePrincipal;
     private Socket socket;
-    private PrintWriter saida;
+    private DataOutputStream dataOut;
+    private DataInputStream dataIn;
 
     private JFrame janela;
     private JTextArea areaChat;
@@ -32,12 +34,13 @@ public class ChatInspetores {
      *
      * @param cliente Referência ao cliente principal de monitoramento
      * @param socket Socket de comunicação com o servidor
-     * @param saida Canal de saída para o servidor
+     * @param dataOut Canal de saída para o servidor
      */
-    public ChatInspetores(ClienteMonitoramento cliente, Socket socket, PrintWriter saida) {
+    public ChatInspetores(ClienteMonitoramento cliente, Socket socket, DataOutputStream dataOut) throws IOException {
         this.clientePrincipal = cliente;
         this.socket = socket;
-        this.saida = saida;
+        this.dataOut = dataOut;
+        this.dataIn = new DataInputStream(socket.getInputStream());
         this.listaInspetores = new ArrayList<>();
 
         // Configura a interface primeiro
@@ -51,8 +54,12 @@ public class ChatInspetores {
      * Solicita a lista de inspetores conectados ao servidor
      */
     private void solicitarListaInspetores() {
-        if (saida != null) {
-            saida.println("CHAT:LISTAR_INSPETORES");
+        if (dataOut != null) {
+            try {
+                dataOut.writeUTF("CHAT:LISTAR_INSPETORES");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -146,29 +153,34 @@ public class ChatInspetores {
             if (comboInspetores == null) {
                 return; // Retorna se o combo ainda não foi inicializado
             }
-            
-            // Guarda a seleção atual
+
+            System.out.println("DEBUG CHAT CLIENTE: Atualizando lista UI. Lista interna: " + this.listaInspetores); // Log de depuração
+
+            // Guarda a seleção atual antes de limpar
             String selecaoAtual = (String) comboInspetores.getSelectedItem();
 
-            // Limpa o modelo, mas mantém "Todos"
-            while (modeloInspetores.getSize() > 1) {
-                modeloInspetores.removeElementAt(1);
-            }
+            // Limpar COMPLETAMENTE o modelo do JComboBox
+            modeloInspetores.removeAllElements();
 
-            // Adiciona a lista atualizada
-            for (String inspetor : listaInspetores) {
-                // Verifica se não é o próprio inspetor
-                if (!inspetor.equals(clientePrincipal.getNomeInspetor())) {
-                    modeloInspetores.addElement(inspetor);
+            // Adicionar "Todos" como a primeira opção
+            modeloInspetores.addElement("Todos");
+
+            // Adicionar todos os inspetores da lista interna (this.listaInspetores)
+            // A lista interna deve conter apenas os nomes recebidos do servidor (sem "Todos", "Central", etc.)
+            for (String inspetor : this.listaInspetores) {
+                String nomeLimpo = inspetor.trim();
+                // Adiciona apenas nomes válidos e diferentes do próprio cliente
+                if (!nomeLimpo.isEmpty() && !nomeLimpo.equals(clientePrincipal.getNomeInspetor())) {
+                    modeloInspetores.addElement(nomeLimpo); // Adiciona ao modelo do JComboBox
                 }
             }
 
-            // Restaura a seleção se possível
+            // Restaura a seleção ou seleciona "Todos"
             if (selecaoAtual != null && modeloInspetores.getIndexOf(selecaoAtual) >= 0) {
                 comboInspetores.setSelectedItem(selecaoAtual);
             } else {
                 comboInspetores.setSelectedIndex(0); // Seleciona "Todos" por padrão
-                destinatarioAtual = "Todos";
+                destinatarioAtual = "Todos"; // Atualiza a variável de destinatário
             }
         });
     }
@@ -178,7 +190,7 @@ public class ChatInspetores {
      */
     private void enviarMensagem() {
         String mensagem = campoMensagem.getText().trim();
-        if (!mensagem.isEmpty() && saida != null) {
+        if (!mensagem.isEmpty() && dataOut != null) {
             // Obtém o destinatário selecionado de forma segura
             String destinatario = (String) comboInspetores.getSelectedItem();
             
@@ -198,14 +210,18 @@ public class ChatInspetores {
             System.out.println("DEBUG CLIENTE: Enviando para o servidor: " + mensagemParaEnviar);
 
             // Envia a mensagem
-            saida.println(mensagemParaEnviar);
+            try {
+                dataOut.writeUTF(mensagemParaEnviar);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
             // Adiciona mensagem na área de chat (localmente)
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
             String timestamp = sdf.format(new Date());
 
             String destinatarioTexto = destinatario.equals("Todos") ? "Todos" : "Privado para " + destinatario;
-            areaChat.append("[" + timestamp + "] (Para " + destinatarioTexto + ") Você: " + mensagem + "\n");
+            areaChat.append("[" + timestamp + "] (" + destinatarioTexto + ") Você: " + mensagem + "\n");
 
             // Limpa o campo de mensagem
             campoMensagem.setText("");
@@ -219,62 +235,65 @@ public class ChatInspetores {
      * @return true se a mensagem foi processada, false caso contrário
      */
     public boolean processarMensagem(String mensagem) {
-        // Verifica se é uma mensagem relacionada ao chat
-        if (mensagem.startsWith("CHAT:")) {
-            // Remove o prefixo
-            String conteudo = mensagem.substring(5);
+        // A mensagem recebida JÁ ESTÁ SEM O PREFIXO "CHAT:" neste método
+        String conteudo = mensagem; // Não precisa mais remover o prefixo CHAT: aqui
 
-            // Processa diferentes tipos de mensagens de chat
-            if (conteudo.startsWith("LISTA_INSPETORES:")) {
-                // Atualiza lista de inspetores
-                processarListaInspetores(conteudo.substring(16));
-                return true;
-            } else if (conteudo.startsWith("MSG_DE:")) {
-                // Processa mensagem recebida
-                processarMensagemRecebida(conteudo.substring(7));
-                return true;
-            } else if (conteudo.startsWith("CONECTADO:")) {
-                // Inspetor conectado
-                String novoInspetor = conteudo.substring(10);
-                adicionarInspetor(novoInspetor);
-                return true;
-            } else if (conteudo.startsWith("DESCONECTADO:")) {
-                // Inspetor desconectado
-                String inspetorSaiu = conteudo.substring(13);
-                removerInspetor(inspetorSaiu);
-                return true;
-            }
+        System.out.println("DEBUG CHAT CLIENTE: Processando mensagem: " + conteudo); // Log de depuração
+
+        // Processa diferentes tipos de mensagens de chat
+        if (conteudo.startsWith("LISTA_INSPETORES:")) {
+            // Atualiza lista COMPLETA de inspetores (recebida ao entrar ou solicitar)
+            String listaStr = conteudo.substring("LISTA_INSPETORES:".length());
+            List<String> listaInspetoresRecebida = parseListaInspetores(listaStr);
+
+            // --- CORREÇÃO: ATUALIZAR A LISTA INTERNA DO CHATINSPETORES ---
+            SwingUtilities.invokeLater(() -> {
+                 this.listaInspetores.clear(); // Limpa a lista interna atual
+                 // Adiciona inspetores recebidos
+                 for (String inspetor : listaInspetoresRecebida) {
+                     String nomeLimpo = inspetor.trim();
+                     if (!nomeLimpo.isEmpty()) {
+                         this.listaInspetores.add(nomeLimpo); // Adiciona à lista interna
+                     }
+                 }
+                 Collections.sort(this.listaInspetores); // Manter a lista interna ordenada
+                 this.atualizarListaInspetores(); // Chama o método local para ATUALIZAR O JCOMBOBOX
+            });
+            return true;
+        } else if (conteudo.startsWith("MSG_DE:")) {
+            // Processa mensagem de chat recebida de outro inspetor ou do sistema
+            String dadosMensagem = conteudo.substring("MSG_DE:".length());
+            processarMensagemRecebida(dadosMensagem); // Método que adiciona a mensagem na área de chat
+            return true;
+        } else if (conteudo.startsWith("CONECTADO:")) {
+            String novoInspetor = conteudo.substring("CONECTADO:".length());
+            // --- CORREÇÃO: ADICIONAR NA LISTA INTERNA E ATUALIZAR JCOMBOBOX ---
+            adicionarInspetor(novoInspetor); // Este método deve adicionar à lista interna e chamar this.atualizarListaInspetores()
+            return true;
+        } else if (conteudo.startsWith("DESCONECTADO:")) {
+            String inspetorSaiu = conteudo.substring("DESCONECTADO:".length());
+            // --- CORREÇÃO: REMOVER DA LISTA INTERNA E ATUALIZAR JCOMBOBOX ---
+            removerInspetor(inspetorSaiu); // Este método deve remover da lista interna e chamar this.atualizarListaInspetores()
+            return true;
         }
 
-        // Não é uma mensagem de chat
-        return false;
+        // Se não for um comando CHAT conhecido por ChatInspetores
+        return false; // Indica que não foi processado por ChatInspetores
     }
 
-    /**
-     * Processa lista de inspetores recebida do servidor
-     *
-     * @param listaStr Lista de inspetores separada por vírgulas
-     */
-    private void processarListaInspetores(String listaStr) {
-        listaInspetores.clear();
-
-        // Divide a string por vírgulas e filtra/limpa entradas
+    // Método auxiliar para parsear a string da lista de inspetores (se não existir)
+    private List<String> parseListaInspetores(String listaStr) {
+        List<String> lista = new ArrayList<>();
         if (listaStr != null && !listaStr.trim().isEmpty()) {
             String[] inspetores = listaStr.split(",");
             for (String inspetor : inspetores) {
-                // Limpeza rigorosa: remove espaços em branco e caracteres não visíveis
-                String nomeLimpo = inspetor.trim().replaceAll("[^\\p{Print}\\p{Space}]", "").trim();
-                
-                if (!nomeLimpo.isEmpty() && !nomeLimpo.equals(clientePrincipal.getNomeInspetor())) {
-                    listaInspetores.add(nomeLimpo);
+                String nomeLimpo = inspetor.trim();
+                if (!nomeLimpo.isEmpty()) {
+                    lista.add(nomeLimpo);
                 }
             }
         }
-
-        // Ordena a lista de inspetores alfabeticamente
-        Collections.sort(listaInspetores);
-
-        atualizarListaInspetores();
+        return lista;
     }
 
     /**
@@ -296,13 +315,18 @@ public class ChatInspetores {
                 mensagem = mensagem.substring(0, mensagem.length() - 10); // Remove o [PRIVADO]
             }
             
-            String mensagemFormatada = String.format("[%s] %s: %s", 
-                new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()),
-                remetente,
-                mensagem);
-            
+            String mensagemFormatada;
             if (isPrivada) {
-                mensagemFormatada = "[PRIVADO] " + mensagemFormatada;
+                mensagemFormatada = String.format("[%s] (Privado para %s) %s: %s", 
+                    new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()),
+                    remetente.equals(clientePrincipal.getNomeInspetor()) ? "Você" : remetente,
+                    remetente.equals(clientePrincipal.getNomeInspetor()) ? "Você" : remetente,
+                    mensagem);
+            } else {
+                mensagemFormatada = String.format("[%s] %s: %s", 
+                    new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date()),
+                    remetente,
+                    mensagem);
             }
             
             areaChat.append(mensagemFormatada + "\n");
@@ -316,18 +340,19 @@ public class ChatInspetores {
      * @param inspetor O nome do inspetor a ser adicionado
      */
     private void adicionarInspetor(String inspetor) {
-        // Verifica se já existe
-        if (!listaInspetores.contains(inspetor)) {
-            listaInspetores.add(inspetor);
-            atualizarListaInspetores();
-
-            // Notifica na área de chat, se aberta
-            if (janela != null && janela.isVisible()) {
-                SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-                String timestamp = sdf.format(new Date());
-                areaChat.append("[" + timestamp + "] [Sistema] Inspetor conectado: " + inspetor + "\n");
+        // Adiciona o inspetor à lista interna do ChatInspetores e atualiza o JComboBox
+        SwingUtilities.invokeLater(() -> {
+            String nomeLimpo = inspetor.trim();
+            if (!nomeLimpo.isEmpty() && !this.listaInspetores.contains(nomeLimpo)) {
+                this.listaInspetores.add(nomeLimpo); // Adiciona à lista interna
+                Collections.sort(this.listaInspetores); // Manter a lista interna ordenada
+                this.atualizarListaInspetores(); // Chama o método local para ATUALIZAR O JCOMBOBOX
+                // Opcional: Notificar na área de chat (System message)
+                 if (janela != null && janela.isVisible()) {
+                     areaChat.append("[" + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "] [Sistema] Inspetor conectado: " + nomeLimpo + "\n");
+                 }
             }
-        }
+        });
     }
 
     /**
@@ -336,15 +361,18 @@ public class ChatInspetores {
      * @param inspetor O nome do inspetor a ser removido
      */
     private void removerInspetor(String inspetor) {
-        listaInspetores.remove(inspetor);
-        atualizarListaInspetores();
-
-        // Notifica na área de chat, se aberta
-        if (janela != null && janela.isVisible()) {
-            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
-            String timestamp = sdf.format(new Date());
-            areaChat.append("[" + timestamp + "] [Sistema] Inspetor desconectado: " + inspetor + "\n");
-        }
+        // Remove o inspetor da lista interna do ChatInspetores e atualiza o JComboBox
+        SwingUtilities.invokeLater(() -> {
+             String nomeLimpo = inspetor.trim();
+            if (this.listaInspetores.remove(nomeLimpo)) { // Remove da lista interna
+                // Não precisa ordenar após remover
+                this.atualizarListaInspetores(); // Chama o método local para ATUALIZAR O JCOMBOBOX
+                // Opcional: Notificar na área de chat (System message)
+                 if (janela != null && janela.isVisible()) {
+                     areaChat.append("[" + new SimpleDateFormat("HH:mm:ss").format(new Date()) + "] [Sistema] Inspetor desconectado: " + nomeLimpo + "\n");
+                 }
+            }
+        });
     }
 
     /**
@@ -378,7 +406,7 @@ public class ChatInspetores {
         emojisPorCategoria.put("Expressões", new String[]{"😊", "😄", "😃", "😀", "😁", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩", "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯", "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕"});
         emojisPorCategoria.put("Natureza", new String[]{"🌱", "🌲", "🌳", "🌴", "🌵", "🌾", "🌿", "☘️", "🍀", "🍁", "🍂", "🍃", "🌺", "🌸", "🌼", "🌻", "🌞", "🌝", "🌛", "🌜", "🌚", "🌕", "🌖", "🌗", "🌘", "🌑", "🌒", "🌓", "🌔", "🌙", "🌎", "🌍", "🌏", "💫", "⭐", "🌟", "✨", "⚡", "☄️", "💥", "🔥", "🌪", "🌈", "☀️", "🌤", "⛅", "🌥", "☁️", "🌦", "🌧", "⛈", "🌩", "🌨", "❄️", "☃️", "⛄", "🌬", "💨", "💧", "💦", "☔", "☂️", "🌊", "🌫"});
         emojisPorCategoria.put("Objetos", new String[]{"📱", "📲", "📟", "📠", "🔋", "🔌", "💻", "🖥", "🖨", "⌨️", "🖱", "🖲", "🕹", "🗜", "💽", "💾", "💿", "📀", "📼", "📷", "📸", "📹", "🎥", "📽", "🎞", "📞", "☎️", "📟", "📠", "📺", "📻", "🎙", "🎚", "🎛", "🧭", "⏱", "⏲", "⏰", "🕰", "⌛️", "⏳", "📡", "🔋", "🔌", "💡", "🔦", "🕯", "🗑", "🛢", "💸", "💵", "💴", "💶", "💷", "🗃", "📦", "📫", "📪", "📬", "📭", "📮", "🗳", "✉️", "📩", "📨", "📧", "💌", "📥", "📤", "📦", "🏷", "🗳", "🛍", "🛒", "🎁", "🎈", "🎏", "🎀", "🎊", "🎉", "🎎", "🏮", "🎐", "🧧", "✉️", "📩", "📨", "📧", "💌", "📥", "📤", "📦", "🏷", "🗳", "🛍", "🛒", "🎁", "🎈", "🎏", "🎀", "🎊", "🎉", "🎎", "🏮", "🎐", "🧧"});
-        emojisPorCategoria.put("Símbolos", new String[]{"❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "☮️", "✝️", "☪️", "🕉", "☸️", "✡️", "🔯", "🕎", "☯️", "☦️", "🛐", "⛎", "♈️", "♉️", "♊️", "♋️", "♌️", "♍️", "♎️", "♏️", "♐️", "♑️", "♒️", "♓️", "🆔", "⚛️", "🉑", "☢️", "☣️", "📴", "📳", "🈶", "🈚️", "🈸", "🈺", "🈷️", "✴️", "🆚", "💮", "🉐", "㊙️", "㊗️", "🈴", "🈵", "🈹", "🈲", "🅰️", "🅱️", "🆎", "🆑", "🅾️", "🆘", "❌", "⭕️", "🛑", "⛔️", "📛", "🚫", "💯", "💢", "♨️", "🚷", "🚯", "🚳", "🚱", "🔞", "📵", "🚭", "❗️", "❕", "❓", "❔", "‼️", "⁉️", "🔅", "🔆", "〽️", "⚠️", "🚸", "🔱", "⚜️", "🔰", "♻️", "✅", "🈯️", "💹", "❇️", "✳️", "❎", "🌐", "💠", "Ⓜ️", "🌀", "💤", "🏧", "🚾", "♿️", "🅿️", "🛗", "🛂", "🛃", "🛄", "🛅", "🚹", "🚺", "🚼", "🚻", "🚮", "🎦", "📶", "🈁", "🔣", "ℹ️", "🔤", "🔡", "🔠", "🆖", "🆗", "🆙", "🆒", "🆕", "🆓", "0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟", "🔢", "#️⃣", "*️⃣", "⏏️", "▶️", "⏸", "⏹", "⏺", "⏭", "⏮", "⏩", "⏪", "⏫", "⏬", "◀️", "🔼", "🔽", "➡️", "⬅️", "⬆️", "⬇️", "↗️", "↘️", "↙️", "↖️", "↕️", "↔️", "↪️", "↩️", "⤴️", "⤵️", "🔀", "🔁", "🔂", "🔄", "🔃", "🎵", "🎶", "➕", "➖", "➗", "✖️", "💲", "💱", "™️", "©️", "®️", "👁‍🗨", "🔚", "🔙", "🔛", "🔝", "🔜", "〰️", "➰", "➿", "✔️", "☑️", "🔘", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫️", "⚪️", "🟤", "🔺", "🔻", "🔸", "🔹", "🔶", "🔷", "🔳", "🔲", "▪️", "▫️", "◾️", "◽️", "◼️", "◻️", "🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "⬛️", "⬜️", "🟫", "🔈", "🔇", "🔉", "🔊", "🔔", "🔕", "📣", "📢", "💬", "💭", "🗯", "♠️", "♣️", "♥️", "♦️", "🃏", "🎴", "🀄️", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛", "🕜", "🕝", "🕞", "🕟", "🕠", "🕡", "🕢", "🕣", "🕤", "🕥", "🕦", "🕧"});
+        emojisPorCategoria.put("Símbolos", new String[]{"❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟", "☮️", "✝️", "☪️", "🕉", "☸️", "✡️", "🔯", "🕎", "☯️", "☦️", "🛐", "⛎", "♈️", "♉️", "♊️", "♋️", "♌️", "♍️", "♎️", "♏️", "♐️", "♑️", "♒️", "♓️", "🆔", "⚛️", "🉑", "☢️", "☣️", "📴", "📳", "🈶", "🈚️", "🈸", "🈺", "🈷️", "✴️", "🆚", "💮", "🉐", "㊙️", "㊗️", "🈴", "🈵", "🈹", "🈲", "🅰️", "🅱️", "🆎", "🆑", "🅾️", "🆘", "❌", "⭕️", "🛑", "⛔️", "📛", "🚫", "💯", "💢", "♨️", "🚷", "🚯", "🚳", "🚱", "🔞", "📵", "🚭", "❗️", "❕", "❓", "❔", "‼️", "⁉️", "🔅", "🔆", "〽️", "⚠️", "🚸", "🔱", "⚜️", "🔰", "♻️", "✅", "🈯️", "💹", "❇️", "✳️", "❎", "🌐", "💠", "Ⓜ️", "🌀", "💤", "🏧", "🚾", "♿️", "🅿️", "🛗", "🛂", "🛃", "🛄", "🛅", "🚹", "🚺", "🚼", "🚻", "🚮", "🎦", "📶", "🈁", "🔣", "ℹ️", "🔤", "🔡", "🔠", "🆖", "🆗", "🆙", "🆒", "🆕", "🆓", "0️⃣", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔢", "#️⃣", "*️⃣", "⏏️", "▶️", "⏸", "⏹", "⏺", "⏭", "⏮", "⏩", "⏪", "⏫", "⏬", "◀️", "🔼", "🔽", "➡️", "⬅️", "⬆️", "⬇️", "↗️", "↘️", "↙️", "↖️", "↕️", "↔️", "↪️", "↩️", "⤴️", "⤵️", "🔀", "🔁", "🔂", "🔄", "🔃", "🎵", "🎶", "➕", "➖", "➗", "✖️", "💲", "💱", "™️", "©️", "®️", "👁‍🗨", "🔚", "🔙", "🔛", "🔝", "🔜", "〰️", "➰", "➿", "✔️", "☑️", "🔘", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚫️", "⚪️", "🟤", "🔺", "🔻", "🔸", "🔹", "🔶", "🔷", "🔳", "🔲", "▪️", "▫️", "◾️", "◽️", "◼️", "◻️", "🟥", "🟧", "🟨", "🟩", "🟦", "🟪", "⬛️", "⬜️", "🟫", "🔈", "🔇", "🔉", "🔊", "🔔", "🔕", "📣", "📢", "💬", "💭", "🗯", "♠️", "♣️", "♥️", "♦️", "🃏", "🎴", "🀄️", "🕐", "🕑", "🕒", "🕓", "🕔", "🕕", "🕖", "🕗", "🕘", "🕙", "🕚", "🕛", "🕜", "🕝", "🕞", "🕟", "🕠", "🕡", "🕢", "🕣", "🕤", "🕥", "🕦", "🕧"});
 
         JPanel painelEmojis = new JPanel(new GridLayout(0, 8, 2, 2));
         JScrollPane scrollEmojis = new JScrollPane(painelEmojis);
@@ -421,5 +449,13 @@ public class ChatInspetores {
         }
         janela.setVisible(true);
         solicitarListaInspetores(); // Atualiza a lista ao abrir
+    }
+
+    /**
+     * Retorna a lista de inspetores conectados
+     * @return Lista de nomes dos inspetores
+     */
+    public List<String> getListaInspetores() {
+        return new ArrayList<>(this.listaInspetores);
     }
 }

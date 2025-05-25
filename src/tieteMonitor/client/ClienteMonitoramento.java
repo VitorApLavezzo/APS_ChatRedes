@@ -9,9 +9,10 @@ import java.util.*;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import tieteMonitor.util.TransferenciaArquivos;
-import tieteMonitor.util.WebcamManager;
 import tieteMonitor.util.MulticastManager;
 import tieteMonitor.util.EmailSender;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Cliente para Sistema de Monitoramento Ambiental do Rio Tietê
@@ -22,8 +23,8 @@ public class ClienteMonitoramento {
     private int SERVIDOR_PORTA;
 
     private Socket socket;
-    private PrintWriter saida;
-    private BufferedReader entrada;
+    private DataOutputStream dataOut;
+    private DataInputStream dataIn;
     private String nomeInspetor;
     private String localMonitorado;
 
@@ -44,8 +45,8 @@ public class ClienteMonitoramento {
     // Componente de chat entre inspetores
     private ChatInspetores chatInspetores;
     
-    // Gerenciadores de recursos
-    private WebcamManager webcamManager = null; // Inicializar como null, será criado após a conexão
+    // ADICIONAR UMA LISTA DE INSPETORES NO CLIENTE PRINCIPAL
+    private List<String> inspetoresConectados = new ArrayList<>();
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -159,7 +160,7 @@ public class ClienteMonitoramento {
     private void configurarInterface() {
         frame = new JFrame("Monitor Ambiental - Rio Tietê");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(800, 600);
+        frame.setSize(1000, 800);
     
         try {
             // Tema moderno FlatLaf
@@ -201,7 +202,8 @@ public class ClienteMonitoramento {
         painelEntrada.add(botaoEmoticons, BorderLayout.WEST);
         
         botaoEnviar = new JButton("Enviar");
-        botaoEnviar.setIcon(new ImageIcon("src/resources/send.png"));
+        botaoEnviar.setIcon(new ImageIcon(new ImageIcon("src/resources/send.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoEnviar.setPreferredSize(new Dimension(100, 30));
         botaoEnviar.addActionListener(e -> enviarMensagem());
         painelEntrada.add(campoMensagem, BorderLayout.CENTER);
         painelEntrada.add(botaoEnviar, BorderLayout.EAST);
@@ -209,37 +211,41 @@ public class ClienteMonitoramento {
         // Painel de botões
         JPanel painelBotoes = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         botaoRelatorio = new JButton("Enviar Relatório");
-        botaoRelatorio.setIcon(new ImageIcon("src/resources/report.png"));
+        botaoRelatorio.setIcon(new ImageIcon(new ImageIcon("src/resources/report.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoRelatorio.setPreferredSize(new Dimension(150, 30));
         botaoRelatorio.addActionListener(e -> abrirJanelaRelatorio());
         painelBotoes.add(botaoRelatorio);
 
         botaoAlerta = new JButton("Alerta Ambiental");
         botaoAlerta.setBackground(new Color(255, 100, 100));
-        botaoAlerta.setIcon(new ImageIcon("src/resources/alert.png"));
+        botaoAlerta.setIcon(new ImageIcon(new ImageIcon("src/resources/alert.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoAlerta.setPreferredSize(new Dimension(150, 30));
         botaoAlerta.addActionListener(e -> abrirJanelaAlerta());
         painelBotoes.add(botaoAlerta);
 
         botaoEmail = new JButton("Enviar E-mail");
-        botaoEmail.setIcon(new ImageIcon("src/resources/email.png"));
+        botaoEmail.setIcon(new ImageIcon(new ImageIcon("src/resources/email.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoEmail.setPreferredSize(new Dimension(150, 30));
         botaoEmail.addActionListener(e -> enviarRelatorioEmail());
         painelBotoes.add(botaoEmail);
 
-        JButton botaoEnviarArquivo = new JButton("Enviar Arquivo");
-        botaoEnviarArquivo.setIcon(new ImageIcon("src/resources/file.png"));
-        botaoEnviarArquivo.addActionListener(e -> selecionarArquivo());
-        painelBotoes.add(botaoEnviarArquivo);
+        JButton botaoArquivos = new JButton("Arquivos Recebidos");
+        botaoArquivos.setIcon(new ImageIcon(new ImageIcon("src/resources/files.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoArquivos.setPreferredSize(new Dimension(150, 30));
+        botaoArquivos.addActionListener(e -> abrirListaArquivos());
+        painelBotoes.add(botaoArquivos);
 
         JButton botaoChat = new JButton("Chat Inspetores");
-        botaoChat.setBackground(new Color(100, 180, 255));
-        botaoChat.setIcon(new ImageIcon("src/resources/chat.png"));
+        botaoChat.setIcon(new ImageIcon(new ImageIcon("src/resources/chat.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoChat.setPreferredSize(new Dimension(150, 30));
         botaoChat.addActionListener(e -> abrirChatInspetores());
         painelBotoes.add(botaoChat);
 
-        // Novo botão para compartilhar vídeo
-        JButton botaoCompartilharVideo = new JButton("Compartilhar Vídeo");
-        botaoCompartilharVideo.setIcon(new ImageIcon("src/resources/webcam.png")); // Assumindo que há um ícone de webcam
-        botaoCompartilharVideo.addActionListener(e -> toggleCompartilharVideo());
-        painelBotoes.add(botaoCompartilharVideo);
+        JButton botaoEnviarArquivo = new JButton("Enviar Arquivo");
+        botaoEnviarArquivo.setIcon(new ImageIcon(new ImageIcon("src/resources/file.png").getImage().getScaledInstance(20, 20, Image.SCALE_SMOOTH)));
+        botaoEnviarArquivo.setPreferredSize(new Dimension(150, 30));
+        botaoEnviarArquivo.addActionListener(e -> iniciarEnvioArquivo());
+        painelBotoes.add(botaoEnviarArquivo);
 
         // Barra de menu
         JMenuBar menuBar = new JMenuBar();
@@ -289,28 +295,18 @@ public class ClienteMonitoramento {
 
     private void conectarServidor() {
         try {
-            // Conecta ao servidor
             socket = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
-            saida = new PrintWriter(socket.getOutputStream(), true);
-            entrada = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            dataOut = new DataOutputStream(socket.getOutputStream());
+            dataIn = new DataInputStream(socket.getInputStream());
+            dataOut.writeUTF(nomeInspetor);
+            dataOut.writeUTF(localMonitorado);
     
-            // Envia identificação
-            saida.println(nomeInspetor);
-            saida.println(localMonitorado);
+            // Aguarda as duas mensagens de boas-vindas do servidor
+            String msg1 = dataIn.readUTF();
+            String msg2 = dataIn.readUTF();
+            // Agora pode liberar o chat
     
-            // Inicializa componente de chat entre inspetores
-            chatInspetores = new ChatInspetores(this, socket, saida);
-            
-            // Inicializa o gerenciador de webcam AQUI, APÓS obter o PrintWriter 'saida'
-            try {
-                webcamManager = new WebcamManager(saida); // Passa o PrintWriter 'saida'
-            } catch (com.github.sarxos.webcam.WebcamException e) {
-                 webcamManager = null;
-                 SwingUtilities.invokeLater(() -> {
-                     adicionarMensagem("Erro ao inicializar webcam. Função de vídeo desabilitada: " + e.getMessage());
-                 });
-                 System.err.println("Erro ao inicializar webcam: " + e.getMessage());
-            }
+            chatInspetores = new ChatInspetores(this, socket, dataOut);
     
             // Inicializa o gerenciador multicast
             multicastManager = new MulticastManager(mensagem -> {
@@ -322,51 +318,83 @@ public class ClienteMonitoramento {
             multicastManager.iniciarRecepcao();
     
             // Atualiza status
-            SwingUtilities.invokeLater(() -> {
-                labelStatus.setText("Conectado ao servidor");
-                labelStatus.setForeground(new Color(0, 150, 0));
-                adicionarMensagem("Conectado ao Sistema de Monitoramento Ambiental do Rio Tietê");
-            });
+            atualizarStatus("Conectado ao servidor");
     
             // Inicia thread para receber mensagens
             new Thread(this::receberMensagens).start();
     
         } catch (IOException e) {
-            adicionarMensagem("Erro ao conectar: " + e.getMessage());
             JOptionPane.showMessageDialog(frame,
-                    "Não foi possível conectar ao servidor.\n" + e.getMessage(),
-                    "Erro de Conexão", JOptionPane.ERROR_MESSAGE);
+                "Erro ao conectar ao servidor: " + e.getMessage(),
+                "Erro de Conexão",
+                JOptionPane.ERROR_MESSAGE);
+            System.exit(1);
         }
     }
 
     private void receberMensagens() {
         try {
             String mensagem;
-            while ((mensagem = entrada.readLine()) != null) {
+            while ((mensagem = dataIn.readUTF()) != null) {
                 final String msg = mensagem;
+                System.out.println("DEBUG CLIENTE RECEBEU: " + msg); // Log de depuração
+
                 SwingUtilities.invokeLater(() -> {
                     if (msg.startsWith("ALERTA:")) {
                         adicionarAlerta(msg.substring(7));
                     } else if (msg.startsWith("CHAT:")) {
-                        // Se for uma mensagem de chat, passa para o ChatInspetores processar
-                        if (chatInspetores != null && chatInspetores.processarMensagem(msg)) {
-                            // Mensagem de chat processada pelo componente
+                        String conteudoChat = msg.substring(5); // Remove o prefixo CHAT:
+
+                        if (conteudoChat.startsWith("ALERTA:")) {
+                            String[] partesAlerta = conteudoChat.substring(7).split(":", 2);
+                            if (partesAlerta.length >= 2) {
+                                String remetenteAlerta = partesAlerta[0];
+                                String mensagemAlerta = partesAlerta[1];
+                                adicionarAlerta("[ALERTA DE INSPETOR] De " + remetenteAlerta + ": " + mensagemAlerta);
+                            } else {
+                                System.err.println("DEBUG CLIENTE: Mensagem CHAT:ALERTA: mal formada: " + msg);
+                            }
+                        } else if (chatInspetores != null && chatInspetores.processarMensagem(conteudoChat)) {
                             System.out.println("DEBUG CLIENTE RECEBER: Mensagem CHAT processada por ChatInspetores.");
                         } else {
-                            // Se não for mensagem de chat ou o componente não a processou, adiciona à área geral
-                            adicionarMensagem(msg);
-                            System.out.println("DEBUG CLIENTE RECEBER: Mensagem não-CHAT ou não processada pelo chat: " + msg);
+                            System.out.println("DEBUG CLIENTE RECEBER: Mensagem CHAT não processada pelo chat: " + msg);
+                        }
+                    } else if (msg.startsWith("ARQUIVO:")) {
+                        // Processa mensagem de arquivo: ARQUIVO:nomeUnico:remetente:nomeOriginal
+                        String[] partes = msg.substring(8).split(":", 3); // Limita o split a 3 partes para garantir que o nomeOriginal não seja quebrado por ":"
+                        if (partes.length >= 3) {
+                            String nomeUnico = partes[0];
+                            String remetente = partes[1];
+                            String nomeOriginal = partes[2]; // Este é o nome original do arquivo
+
+                            // Não mostrar a notificação para si mesmo se for o remetente
+                            if (!remetente.equals(nomeInspetor)) { // Compare com o nome do inspetor deste cliente
+                                int opcao = JOptionPane.showConfirmDialog(
+                                    frame,
+                                    "Você recebeu um arquivo: " + nomeOriginal + "\nDe: " + remetente + "\n\nDeseja baixar?",
+                                    "Arquivo Recebido",
+                                    JOptionPane.YES_NO_OPTION
+                                );
+
+                                if (opcao == JOptionPane.YES_OPTION) {
+                                    iniciarDownloadArquivo(nomeUnico, nomeOriginal);
+                                }
+                            }
                         }
                     } else {
-                        adicionarMensagem(msg);
+                        // Mensagens que não são ALERTA, CHAT ou ARQUIVO (o que não deveria acontecer no fluxo normal)
+                        adicionarMensagem(msg); // Adiciona mensagens desconhecidas na área geral
                     }
                 });
             }
         } catch (IOException e) {
+            System.err.println("Erro ao receber mensagens: " + e.getMessage());
             SwingUtilities.invokeLater(() -> {
-                adicionarMensagem("Erro na conexão: " + e.getMessage());
-                labelStatus.setText("Desconectado");
-                labelStatus.setForeground(Color.RED);
+                atualizarStatus("Desconectado do servidor");
+                JOptionPane.showMessageDialog(frame,
+                    "Conexão com o servidor perdida: " + e.getMessage(),
+                    "Erro de Conexão",
+                    JOptionPane.ERROR_MESSAGE);
             });
         }
     }
@@ -408,8 +436,12 @@ public class ClienteMonitoramento {
     private void enviarMensagem() {
         String mensagem = campoMensagem.getText().trim();
         if (!mensagem.isEmpty()) {
-            saida.println(mensagem);
+            try {
+                dataOut.writeUTF(mensagem);
             campoMensagem.setText("");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
     }
 
@@ -443,9 +475,13 @@ public class ClienteMonitoramento {
         botaoEnviar.addActionListener(e -> {
             String relatorio = areaRelatorio.getText().trim();
             if (!relatorio.isEmpty()) {
-                saida.println("RELATORIO:" + relatorio);
+                try {
+                    dataOut.writeUTF("RELATORIO:" + relatorio);
                 adicionarRelatorio(relatorio);
                 dialog.dispose();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
             } else {
                 JOptionPane.showMessageDialog(dialog,
                         "Por favor, preencha o relatório.",
@@ -487,11 +523,17 @@ public class ClienteMonitoramento {
         botaoEnviar.addActionListener(e -> {
             String alerta = areaAlerta.getText().trim();
             if (!alerta.isEmpty()) {
-                // Envia o alerta para o servidor
-                saida.println("ALERTA:" + alerta);
-                // Não adiciona localmente mais, aguarda a retransmissão do servidor
-                // adicionarAlerta(alerta);
+                // ENCAPSULAR O ALERTA DENTRO DO PROTOCOLO CHAT
+                String comandoAlerta = "CHAT:ALERTA:" + alerta; // <--- ADICIONAR PREFIXO CHAT:
+                try {
+                    dataOut.writeUTF(comandoAlerta); // Usar dataOut para enviar na conexão principal de chat
+                    adicionarMensagem("ALERTA ENVIADO: " + alerta);
                 dialog.dispose();
+                } catch (IOException e1) {
+                    JOptionPane.showMessageDialog(frame,
+                        "Erro ao enviar alerta: " + e1.getMessage(),
+                        "Erro", JOptionPane.ERROR_MESSAGE);
+                }
             } else {
                 JOptionPane.showMessageDialog(dialog,
                         "Por favor, descreva o alerta ambiental.",
@@ -513,16 +555,8 @@ public class ClienteMonitoramento {
 
     private void desconectar() {
         try {
-            if (webcamManager != null) {
-                webcamManager.fechar();
-            }
-            
-            if (multicastManager != null) {
-                multicastManager.fechar();
-            }
-            
-            if (saida != null) {
-                saida.println("SAIR");
+            if (dataOut != null) {
+                dataOut.writeUTF("SAIR");
             }
     
             if (socket != null && !socket.isClosed()) {
@@ -668,28 +702,46 @@ public class ClienteMonitoramento {
         dialog.setVisible(true);
     }
 
-    private void selecionarArquivo() {
+    private void iniciarEnvioArquivo() {
         JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new FileNameExtensionFilter(
-            "Arquivos de Imagem", "jpg", "jpeg", "png", "gif"));
-        
-        if (fileChooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
-            File arquivo = fileChooser.getSelectedFile();
-            try {
-                // Cria um novo socket para transferência de arquivos
-                Socket socketArquivo = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
-                if (TransferenciaArquivos.enviarArquivo(socketArquivo, arquivo, "CENTRAL")) {
-                    adicionarMensagem("Arquivo enviado com sucesso: " + arquivo.getName());
-                } else {
-                    JOptionPane.showMessageDialog(frame,
-                        "Erro ao enviar arquivo.",
-                        "Erro", JOptionPane.ERROR_MESSAGE);
+        int resultado = fileChooser.showOpenDialog(frame);
+        if (resultado == JFileChooser.APPROVE_OPTION) {
+            File arquivoSelecionado = fileChooser.getSelectedFile();
+            if (arquivoSelecionado.exists() && arquivoSelecionado.isFile()) {
+                // Criar um JDialog para selecionar o destinatário
+                JDialog dialog = new JDialog(frame, "Selecionar Destinatário", true);
+                dialog.setLayout(new BorderLayout());
+                
+                // Criar o JComboBox com os destinatários
+                DefaultComboBoxModel<String> modelo = new DefaultComboBoxModel<>();
+                modelo.addElement("Todos os Inspetores");
+                modelo.addElement("Central");
+                
+                // Adicionar os inspetores individuais
+                for (String inspetor : chatInspetores.getListaInspetores()) {
+                    if (!inspetor.equals(nomeInspetor)) { // Não incluir o próprio inspetor
+                        modelo.addElement(inspetor);
+                    }
                 }
-                socketArquivo.close();
-            } catch (IOException e) {
-                JOptionPane.showMessageDialog(frame,
-                    "Erro ao conectar para envio de arquivo: " + e.getMessage(),
-                    "Erro", JOptionPane.ERROR_MESSAGE);
+                
+                JComboBox<String> comboDestinatarios = new JComboBox<>(modelo);
+                JPanel painel = new JPanel(new FlowLayout());
+                painel.add(new JLabel("Enviar para:"));
+                painel.add(comboDestinatarios);
+                
+                JButton btnEnviar = new JButton("Enviar");
+                btnEnviar.setPreferredSize(new Dimension(100, 30));
+                btnEnviar.addActionListener(e -> {
+                    String destinatario = (String) comboDestinatarios.getSelectedItem();
+                    dialog.dispose();
+                    enviarArquivo(arquivoSelecionado, destinatario);
+                });
+                
+                dialog.add(painel, BorderLayout.CENTER);
+                dialog.add(btnEnviar, BorderLayout.SOUTH);
+                dialog.pack();
+                dialog.setLocationRelativeTo(frame);
+                dialog.setVisible(true);
             }
         }
     }
@@ -704,15 +756,243 @@ public class ClienteMonitoramento {
         }
     }
 
-    private void toggleCompartilharVideo() {
-        // Implemente a lógica para alternar o compartilhamento de vídeo
-        // Isso pode envolver a inicialização ou encerramento da captura de vídeo pela webcam
-        // ou a troca entre compartilhar e parar de compartilhar o vídeo
-        if (webcamManager != null) {
-            webcamManager.toggleCompartilharVideo();
-        } else {
+    private void atualizarStatus(String status) {
+        SwingUtilities.invokeLater(() -> {
+            labelStatus.setText(status);
+            if (status.contains("Conectado")) {
+                labelStatus.setForeground(new Color(0, 150, 0));
+            } else {
+                labelStatus.setForeground(Color.RED);
+            }
+        });
+    }
+
+    private void abrirListaArquivos() {
+        // Executa a comunicação com o servidor em uma nova thread
+        new Thread(() -> {
+            try {
+                // 1. Comunicação com o servidor (em thread separada)
+                Socket socketArquivos = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
+                DataOutputStream out = new DataOutputStream(socketArquivos.getOutputStream());
+                DataInputStream in = new DataInputStream(socketArquivos.getInputStream());
+
+                out.writeUTF("LISTAR_ARQUIVOS"); // Envia o comando
+                out.flush(); // Garante que o comando seja enviado imediatamente
+
+                String lista = in.readUTF(); // Bloqueia APENAS esta thread (não a EDT) esperando a lista
+                System.out.println("DEBUG: Lista recebida do servidor: " + lista); // Debug
+
+                socketArquivos.close();
+
+                // 2. Atualiza a interface gráfica (na EDT)
+                SwingUtilities.invokeLater(() -> {
+                    // Parse da lista recebida
+                    if (lista == null || lista.trim().isEmpty()) {
+                        JOptionPane.showMessageDialog(frame, "Nenhum arquivo disponível no momento.", 
+                            "Arquivos Disponíveis", JOptionPane.INFORMATION_MESSAGE);
+                        return;
+                    }
+
+                    String[] arquivos = lista.split(";");
+                    java.util.List<String> nomesExibicao = new java.util.ArrayList<>();
+                    Map<String, String[]> mapaArquivos = new HashMap<>();
+
+                    for (String arq : arquivos) {
+                        if (arq.trim().isEmpty()) continue;
+                        String[] partes = arq.split("\\|");
+                        if (partes.length >= 3) {
+                            String nomeUnico = partes[0];
+                            String nomeOriginal = partes[1];
+                            String remetente = partes[2];
+                            String exibicao = nomeOriginal + " (de " + remetente + ")";
+                            nomesExibicao.add(exibicao);
+                            mapaArquivos.put(exibicao, new String[]{nomeUnico, nomeOriginal});
+                        }
+                    }
+
+                    if (nomesExibicao.isEmpty()) {
+                        JOptionPane.showMessageDialog(frame, "Nenhum arquivo disponível no momento.", 
+                            "Arquivos Disponíveis", JOptionPane.INFORMATION_MESSAGE);
+                        return;
+                    }
+
+                    // Mostra a lista em um JList
+                    JList<String> listaArquivos = new JList<>(nomesExibicao.toArray(new String[0]));
+                    JScrollPane scrollPane = new JScrollPane(listaArquivos);
+                    scrollPane.setPreferredSize(new Dimension(400, Math.min(300, nomesExibicao.size() * 25)));
+
+                    int opcao = JOptionPane.showConfirmDialog(frame, scrollPane, 
+                        "Arquivos Disponíveis", JOptionPane.OK_CANCEL_OPTION);
+
+                    if (opcao == JOptionPane.OK_OPTION && listaArquivos.getSelectedValue() != null) {
+                        String[] info = mapaArquivos.get(listaArquivos.getSelectedValue());
+                        iniciarDownloadArquivo(info[0], info[1]);
+                    }
+                });
+
+            } catch (IOException e) {
+                String erroMsg = "Erro ao listar arquivos: " + e.getMessage();
+                System.err.println(erroMsg);
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(frame, erroMsg, "Erro", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
+    }
+
+    private void iniciarDownloadArquivo(String nomeUnico, String nomeOriginal) {
+        // Classe interna para armazenar o arquivo de destino
+        class ArquivoDestinoHolder {
+            File arquivo;
+            String erro;
+        }
+        final ArquivoDestinoHolder holder = new ArquivoDestinoHolder();
+
+        // Executa o download em uma nova thread
+        new Thread(() -> {
+            try {
+                // Primeiro, mostra o JFileChooser para o usuário escolher onde salvar
+                SwingUtilities.invokeAndWait(() -> {
+                    try {
+                        JFileChooser fileChooser = new JFileChooser();
+                        fileChooser.setSelectedFile(new File(nomeOriginal));
+                        fileChooser.setDialogTitle("Salvar arquivo como");
+                        
+                        int resultado = fileChooser.showSaveDialog(frame);
+                        if (resultado == JFileChooser.APPROVE_OPTION) {
+                            holder.arquivo = fileChooser.getSelectedFile();
+                            
+                            // Cria a pasta de destino se não existir
+                            File pastaDestino = holder.arquivo.getParentFile();
+                            if (pastaDestino != null && !pastaDestino.exists()) {
+                                if (!pastaDestino.mkdirs()) {
+                                    holder.erro = "Não foi possível criar a pasta de destino: " + pastaDestino.getAbsolutePath();
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        holder.erro = "Erro ao selecionar local do arquivo: " + e.getMessage();
+                    }
+                });
+
+                // Se houve erro na seleção do arquivo, mostra mensagem e retorna
+                if (holder.erro != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(frame, holder.erro, "Erro", JOptionPane.ERROR_MESSAGE);
+                    });
+                    return;
+                }
+
+                // Se o usuário cancelou a seleção, não faz o download
+                if (holder.arquivo == null) {
+                    return;
+                }
+
+                // Conecta ao servidor para baixar o arquivo
+                Socket socketDownload = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
+                DataOutputStream outDownload = new DataOutputStream(socketDownload.getOutputStream());
+                DataInputStream inDownload = new DataInputStream(socketDownload.getInputStream());
+
+                // Envia o comando de download
+                outDownload.writeUTF("DOWNLOAD:" + nomeUnico);
+                outDownload.flush();
+
+                // Aguarda a resposta do servidor
+                String resposta = inDownload.readUTF();
+                if (!resposta.equals("INICIANDO_DOWNLOAD")) {
+                    throw new IOException("Servidor não iniciou o download: " + resposta);
+                }
+
+                // Recebe o arquivo e salva no local escolhido pelo usuário
+                if (TransferenciaArquivos.receberArquivo(socketDownload, holder.arquivo.getName(), holder.arquivo.getParent())) {
+                    SwingUtilities.invokeLater(() -> {
+                        adicionarMensagem("Arquivo baixado com sucesso: " + holder.arquivo.getName());
+                    });
+                } else {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(frame, "Erro ao baixar arquivo.", "Erro", JOptionPane.ERROR_MESSAGE);
+                    });
+                }
+                socketDownload.close();
+            } catch (Exception e) {
+                String erroMsg = "Erro ao baixar arquivo: " + e.getMessage();
+                System.err.println(erroMsg);
+                e.printStackTrace();
+                SwingUtilities.invokeLater(() -> {
+                    JOptionPane.showMessageDialog(frame, erroMsg, "Erro", JOptionPane.ERROR_MESSAGE);
+                });
+            }
+        }).start();
+    }
+
+    // Método para atualizar a lista de inspetores (chamado pelo ChatInspetores)
+    // Este método DEVE garantir que "Central" e "Todos os Inspetores" estejam sempre presentes.
+    public void atualizarListaInspetores(List<String> listaRecebidaDoServidor) {
+        SwingUtilities.invokeLater(() -> {
+            inspetoresConectados.clear(); // Limpa a lista atual
+
+            // Sempre incluir as opções fixas
+            inspetoresConectados.add("Central");
+            inspetoresConectados.add("Todos os Inspetores");
+
+            // Adicionar os inspetores recebidos do servidor (exceto ele mesmo)
+            if (listaRecebidaDoServidor != null) {
+                for (String inspetor : listaRecebidaDoServidor) {
+                    // Adicionar inspetor apenas se não for o próprio cliente e não estiver vazio, e ainda não foi adicionado (Central/Todos)
+                    if (!inspetor.equals(nomeInspetor) && !inspetor.trim().isEmpty() &&
+                        !inspetoresConectados.contains(inspetor.trim())) {
+                         inspetoresConectados.add(inspetor.trim());
+                    }
+                }
+            }
+
+            // Opcional: Ordenar a lista (exceto Central e Todos, se quiser mantê-los no topo)
+            // List<String> paraOrdenar = new ArrayList<>(inspetoresConectados.subList(2, inspetoresConectados.size()));
+            // Collections.sort(paraOrdenar);
+            // inspetoresConectados = new ArrayList<>(inspetoresConectados.subList(0, 2));
+            // inspetoresConectados.addAll(paraOrdenar);
+
+            // DEBUG: Exibir lista atualizada
+            System.out.println("DEBUG CLIENTE: Lista de inspetores atualizada: " + inspetoresConectados);
+
+        });
+    }
+
+    private void enviarArquivo(File arquivo, String destinatario) {
+        try {
+            // Cria um novo socket para transferência de arquivos
+            Socket socketArquivo = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
+            DataOutputStream out = new DataOutputStream(socketArquivo.getOutputStream());
+            DataInputStream in = new DataInputStream(socketArquivo.getInputStream());
+
+            // Envia o comando de arquivo com nome, destinatário e remetente
+            out.writeUTF("ARQUIVO:" + arquivo.getName() + ":" + destinatario + ":" + nomeInspetor);
+            
+            // Envia o tamanho do arquivo
+            out.writeLong(arquivo.length());
+            
+            // Envia o conteúdo do arquivo
+            FileInputStream fileIn = new FileInputStream(arquivo);
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = fileIn.read(buffer)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
+            fileIn.close();
+            
+            // Aguarda confirmação do servidor
+            String resposta = in.readUTF();
+            if (resposta.equals("ARQUIVO_RECEBIDO")) {
+                adicionarMensagem("Arquivo enviado com sucesso: " + arquivo.getName() + " para " + destinatario);
+            } else {
+                JOptionPane.showMessageDialog(frame,
+                    "Erro ao enviar arquivo: " + resposta,
+                    "Erro", JOptionPane.ERROR_MESSAGE);
+            }
+            socketArquivo.close();
+        } catch (IOException e) {
             JOptionPane.showMessageDialog(frame,
-                "Webcam não disponível. Função desabilitada.",
+                "Erro ao conectar para envio de arquivo: " + e.getMessage(),
                 "Erro", JOptionPane.ERROR_MESSAGE);
         }
     }

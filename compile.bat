@@ -5,7 +5,7 @@ echo Compilando o projeto...
 if not exist "bin" mkdir bin
 
 :: Compilar o projeto
-javac --enable-preview --release 22 -cp "lib/*" -d bin src/tieteMonitor/client/*.java src/tieteMonitor/util/*.java src/tieteMonitor/server/*.java
+javac --enable-preview --release 24 -cp "lib/*" -d bin src/tieteMonitor/client/*.java src/tieteMonitor/util/*.java src/tieteMonitor/server/*.java
 
 if %errorlevel% equ 0 (
     echo Compilacao concluida com sucesso!
