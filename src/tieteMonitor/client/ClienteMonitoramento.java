@@ -638,7 +638,7 @@ public class ClienteMonitoramento {
             // Substitua "SEU_EMAIL_GMAIL@gmail.com" pelo seu email
             // Substitua "SUA_SENHA_DE_APP" pela senha de app gerada ou senha de acesso menos seguro
             String remetente = "valavezzo@gmail.com"; // <--- SEU EMAIL
-            String senha = "peuf oshg zmnp pkqj"; // <--- SUA SENHA DE APP
+            String senha = "SUA_SENHA_DE_APP"; // <--- SUA SENHA DE APP
 
             // Verifica se as credenciais foram atualizadas (evita tentar enviar com placeholders)
             if (remetente.equals("SEU_EMAIL_GMAIL@gmail.com") || senha.equals("SUA_SENHA_DE_APP")) {
