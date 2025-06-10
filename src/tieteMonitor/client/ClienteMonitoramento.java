@@ -595,8 +595,8 @@ public class ClienteMonitoramento {
             // **AQUI VOCÊ INSERE SEU EMAIL GMAIL E A SENHA DE APP**
             // Substitua "SEU_EMAIL_GMAIL@gmail.com" pelo seu email
             // Substitua "SUA_SENHA_DE_APP" pela senha de app gerada ou senha de acesso menos seguro
-            String remetente = "valavezzo@gmail.com";
-            String senha = "peuf oshg zmnp pkqj"
+            String remetente = "SEU_EMAIL_GMAIL";
+            String senha = "SUA_SENHA_DE_APP"
             if (remetente.equals("SEU_EMAIL_GMAIL@gmail.com") || senha.equals("SUA_SENHA_DE_APP")) {
                  JOptionPane.showMessageDialog(dialog,
                         "Por favor, atualize seu email e senha no código (EmailSender).", "Erro de Configuração", JOptionPane.ERROR_MESSAGE);
