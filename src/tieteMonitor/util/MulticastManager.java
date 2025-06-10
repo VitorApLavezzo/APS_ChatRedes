@@ -4,14 +4,10 @@ import java.io.IOException;
 import java.net.*;
 import java.util.function.Consumer;
 
-/**
- * Gerenciador de comunicação multicast para o sistema de monitoramento do Rio Tietê
- */
 public class MulticastManager {
     private static final String MULTICAST_ADDRESS = "230.0.0.1";
     private static final int MULTICAST_PORT = 4446;
     private static final int BUFFER_SIZE = 1024;
-    
     private MulticastSocket socket;
     private InetAddress group;
     private boolean running;
@@ -19,10 +15,8 @@ public class MulticastManager {
     private Consumer<String> messageHandler;
     
     /**
-     * Inicializa o gerenciador multicast
-     * 
-     * @param messageHandler Handler para processar mensagens recebidas
-     * @throws IOException Se ocorrer um erro ao inicializar o socket
+     * @param messageHandler
+     * @throws IOException
      */
     public MulticastManager(Consumer<String> messageHandler) throws IOException {
         this.messageHandler = messageHandler;
@@ -31,23 +25,16 @@ public class MulticastManager {
         socket.joinGroup(group);
     }
     
-    /**
-     * Inicia a thread de recebimento de mensagens
-     */
     public void iniciarRecepcao() {
         if (receiveThread != null && receiveThread.isAlive()) {
             return;
         }
-        
         running = true;
         receiveThread = new Thread(this::receiveLoop);
         receiveThread.setDaemon(true);
         receiveThread.start();
     }
     
-    /**
-     * Loop de recebimento de mensagens
-     */
     private void receiveLoop() {
         byte[] buffer = new byte[BUFFER_SIZE];
         
@@ -55,7 +42,6 @@ public class MulticastManager {
             try {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
                 socket.receive(packet);
-                
                 String message = new String(packet.getData(), 0, packet.getLength());
                 if (messageHandler != null) {
                     messageHandler.accept(message);
@@ -69,8 +55,6 @@ public class MulticastManager {
     }
     
     /**
-     * Envia uma mensagem multicast
-     * 
      * @param message Mensagem a ser enviada
      * @return true se o envio foi bem sucedido, false caso contrário
      */
@@ -85,10 +69,6 @@ public class MulticastManager {
             return false;
         }
     }
-    
-    /**
-     * Para a recepção de mensagens e fecha o socket
-     */
     public void fechar() {
         running = false;
         if (socket != null) {

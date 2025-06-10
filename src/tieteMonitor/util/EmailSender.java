@@ -1,5 +1,4 @@
 package tieteMonitor.util;
-
 import javax.mail.*;
 import javax.mail.internet.*;
 import java.util.Properties;
@@ -12,8 +11,6 @@ public class EmailSender {
     private static final int PORT = 587;
     
     /**
-     * Envia um e-mail com as credenciais fornecidas
-     * 
      * @param remetente Email do remetente
      * @param senha Senha do remetente (ou senha de app para Gmail)
      * @param destinatario Email do destinatário
@@ -27,21 +24,18 @@ public class EmailSender {
         props.put("mail.smtp.starttls.enable", "true");
         props.put("mail.smtp.host", HOST);
         props.put("mail.smtp.port", PORT);
-        
         Session session = Session.getInstance(props, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
                 return new PasswordAuthentication(remetente, senha);
             }
         });
-        
         try {
             Message message = new MimeMessage(session);
             message.setFrom(new InternetAddress(remetente));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(destinatario));
             message.setSubject(assunto);
             message.setText(corpo);
-            
             Transport.send(message);
             return true;
         } catch (MessagingException e) {
@@ -51,8 +45,6 @@ public class EmailSender {
     }
     
     /**
-     * Envia um e-mail com anexo
-     * 
      * @param remetente Email do remetente
      * @param senha Senha do remetente
      * @param destinatario Email do destinatário
@@ -69,37 +61,26 @@ public class EmailSender {
         props.put("mail.smtp.starttls.enable", "true");
         props.put("mail.smtp.host", HOST);
         props.put("mail.smtp.port", PORT);
-        
         Session session = Session.getInstance(props, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
                 return new PasswordAuthentication(remetente, senha);
             }
         });
-        
         try {
             Message message = new MimeMessage(session);
             message.setFrom(new InternetAddress(remetente));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(destinatario));
             message.setSubject(assunto);
-            
-            // Cria a parte do corpo do e-mail
             BodyPart messageBodyPart = new MimeBodyPart();
             messageBodyPart.setText(corpo);
-            
-            // Cria a parte do anexo
             MimeBodyPart attachmentPart = new MimeBodyPart();
             attachmentPart.attachFile(caminhoAnexo);
             attachmentPart.setFileName(nomeAnexo);
-            
-            // Combina as partes em um multipart
             Multipart multipart = new MimeMultipart();
             multipart.addBodyPart(messageBodyPart);
             multipart.addBodyPart(attachmentPart);
-            
-            // Define o conteúdo da mensagem como o multipart
             message.setContent(multipart);
-            
             Transport.send(message);
             return true;
         } catch (Exception e) {

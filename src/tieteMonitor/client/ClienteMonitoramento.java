@@ -337,14 +337,13 @@ public class ClienteMonitoramento {
             String mensagem;
             while ((mensagem = dataIn.readUTF()) != null) {
                 final String msg = mensagem;
-                System.out.println("DEBUG CLIENTE RECEBEU: " + msg); // Log de depuração
+                System.out.println("DEBUG CLIENTE RECEBEU: " + msg);
 
                 SwingUtilities.invokeLater(() -> {
                     if (msg.startsWith("ALERTA:")) {
                         adicionarAlerta(msg.substring(7));
                     } else if (msg.startsWith("CHAT:")) {
-                        String conteudoChat = msg.substring(5); // Remove o prefixo CHAT:
-
+                        String conteudoChat = msg.substring(5);
                         if (conteudoChat.startsWith("ALERTA:")) {
                             String[] partesAlerta = conteudoChat.substring(7).split(":", 2);
                             if (partesAlerta.length >= 2) {
@@ -360,15 +359,12 @@ public class ClienteMonitoramento {
                             System.out.println("DEBUG CLIENTE RECEBER: Mensagem CHAT não processada pelo chat: " + msg);
                         }
                     } else if (msg.startsWith("ARQUIVO:")) {
-                        // Processa mensagem de arquivo: ARQUIVO:nomeUnico:remetente:nomeOriginal
                         String[] partes = msg.substring(8).split(":", 3); // Limita o split a 3 partes para garantir que o nomeOriginal não seja quebrado por ":"
                         if (partes.length >= 3) {
                             String nomeUnico = partes[0];
                             String remetente = partes[1];
-                            String nomeOriginal = partes[2]; // Este é o nome original do arquivo
-
-                            // Não mostrar a notificação para si mesmo se for o remetente
-                            if (!remetente.equals(nomeInspetor)) { // Compare com o nome do inspetor deste cliente
+                            String nomeOriginal = partes[2];
+                            if (!remetente.equals(nomeInspetor)) { 
                                 int opcao = JOptionPane.showConfirmDialog(
                                     frame,
                                     "Você recebeu um arquivo: " + nomeOriginal + "\nDe: " + remetente + "\n\nDeseja baixar?",
@@ -382,8 +378,7 @@ public class ClienteMonitoramento {
                             }
                         }
                     } else {
-                        // Mensagens que não são ALERTA, CHAT ou ARQUIVO (o que não deveria acontecer no fluxo normal)
-                        adicionarMensagem(msg); // Adiciona mensagens desconhecidas na área geral
+                        adicionarMensagem(msg);
                     }
                 });
             }
@@ -409,8 +404,6 @@ public class ClienteMonitoramento {
     private void adicionarAlerta(String mensagem) {
         SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
         String timestamp = sdf.format(new Date());
-        
-        // Estilo mais chamativo para o alerta usando HTML
         String alertaFormatado = String.format(
             "<font color=\"red\">\n" +
             "========================================\n" +
@@ -418,18 +411,13 @@ public class ClienteMonitoramento {
             "========================================\n" +
             "</font>",
             timestamp, mensagem);
-
-        // JTextArea não suporta HTML por padrão. Usar JEditorPane para renderizar HTML.
-        // Para JTextArea, vamos apenas usar os separadores e emoji.
-         areaMensagens.append("\n"); // Adiciona uma linha em branco antes
+         areaMensagens.append("\n");
          areaMensagens.append("========================================\n");
          areaMensagens.append(String.format("[%s] 🚨 ALERTA: %s\n", timestamp, mensagem));
          areaMensagens.append("========================================\n");
-         areaMensagens.append("\n"); // Adiciona uma linha em branco depois
+         areaMensagens.append("\n");
 
         areaMensagens.setCaretPosition(areaMensagens.getDocument().getLength());
-
-        // Toca um som de alerta
         Toolkit.getDefaultToolkit().beep();
     }
 
@@ -455,7 +443,6 @@ public class ClienteMonitoramento {
 
         JTextArea areaRelatorio = new JTextArea();
         areaRelatorio.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        // Modelo de relatório pré-preenchido
         areaRelatorio.setText("Local de Monitoramento: " + localMonitorado + "\n" +
                               "Data: " + new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date()) + "\n" +
                               "Inspetor: " + nomeInspetor + "\n\n" +
@@ -467,11 +454,9 @@ public class ClienteMonitoramento {
                               "--------------------\n");
         
         JScrollPane scrollPane = new JScrollPane(areaRelatorio);
-
         JPanel botoesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton botaoEnviar = new JButton("Enviar");
         JButton botaoCancelar = new JButton("Cancelar");
-
         botaoEnviar.addActionListener(e -> {
             String relatorio = areaRelatorio.getText().trim();
             if (!relatorio.isEmpty()) {
@@ -488,45 +473,34 @@ public class ClienteMonitoramento {
                         "Erro", JOptionPane.ERROR_MESSAGE);
             }
         });
-
         botaoCancelar.addActionListener(e -> dialog.dispose());
-
         botoesPanel.add(botaoEnviar);
         botoesPanel.add(botaoCancelar);
-
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(botoesPanel, BorderLayout.SOUTH);
-
         dialog.add(panel);
         dialog.setVisible(true);
     }
-
     private void abrirJanelaAlerta() {
         JDialog dialog = new JDialog(frame, "Enviar Alerta Ambiental", true);
         dialog.setSize(500, 400);
         dialog.setLocationRelativeTo(frame);
-
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
         JTextArea areaAlerta = new JTextArea();
         areaAlerta.setFont(new Font("SansSerif", Font.PLAIN, 14));
         JScrollPane scrollPane = new JScrollPane(areaAlerta);
-
         JPanel botoesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton botaoEnviar = new JButton("Enviar Alerta");
         JButton botaoCancelar = new JButton("Cancelar");
-
         botaoEnviar.setBackground(new Color(255, 100, 100));
         botaoEnviar.setForeground(Color.WHITE);
-
         botaoEnviar.addActionListener(e -> {
             String alerta = areaAlerta.getText().trim();
             if (!alerta.isEmpty()) {
-                // ENCAPSULAR O ALERTA DENTRO DO PROTOCOLO CHAT
-                String comandoAlerta = "CHAT:ALERTA:" + alerta; // <--- ADICIONAR PREFIXO CHAT:
+                String comandoAlerta = "CHAT:ALERTA:" + alerta;
                 try {
-                    dataOut.writeUTF(comandoAlerta); // Usar dataOut para enviar na conexão principal de chat
+                    dataOut.writeUTF(comandoAlerta);
                     adicionarMensagem("ALERTA ENVIADO: " + alerta);
                 dialog.dispose();
                 } catch (IOException e1) {
@@ -542,13 +516,10 @@ public class ClienteMonitoramento {
         });
 
         botaoCancelar.addActionListener(e -> dialog.dispose());
-
         botoesPanel.add(botaoEnviar);
         botoesPanel.add(botaoCancelar);
-
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(botoesPanel, BorderLayout.SOUTH);
-
         dialog.add(panel);
         dialog.setVisible(true);
     }
@@ -558,7 +529,6 @@ public class ClienteMonitoramento {
             if (dataOut != null) {
                 dataOut.writeUTF("SAIR");
             }
-    
             if (socket != null && !socket.isClosed()) {
                 socket.close();
             }
@@ -577,30 +547,23 @@ public class ClienteMonitoramento {
     public String getNomeInspetor() {
         return nomeInspetor;
     }
-
     public String getLocalMonitorado() {
         return localMonitorado;
     }
-
     public JFrame getFrame() {
         return frame;
     }
-
     private void enviarRelatorioEmail() {
         JDialog dialog = new JDialog(frame, "Enviar Relatório por E-mail", true);
         dialog.setSize(500, 400);
         dialog.setLocationRelativeTo(frame);
-
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        JPanel formPanel = new JPanel(new GridLayout(4, 1, 5, 5)); // Campos para destinatário, assunto, etc.
-        
+        JPanel formPanel = new JPanel(new GridLayout(4, 1, 5, 5));
         JTextField campoDestinatario = new JTextField();
         JTextField campoAssunto = new JTextField();
-        JTextArea areaMensagem = new JTextArea(); // Área do corpo do e-mail
+        JTextArea areaMensagem = new JTextArea();
         areaMensagem.setFont(new Font("SansSerif", Font.PLAIN, 14));
-        // Preencher com o modelo de relatório
         areaMensagem.setText("Local de Monitoramento: " + localMonitorado + "\n" +
                              "Data: " + new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date()) + "\n" +
                              "Inspetor: " + nomeInspetor + "\n\n" +
@@ -612,44 +575,34 @@ public class ClienteMonitoramento {
                              "--------------------\n");
         
         JScrollPane scrollPane = new JScrollPane(areaMensagem);
-
         formPanel.add(new JLabel("Destinatário:"));
         formPanel.add(campoDestinatario);
         formPanel.add(new JLabel("Assunto:"));
         formPanel.add(campoAssunto);
-
         JPanel botoesPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton botaoEnviar = new JButton("Enviar"); // Botão de enviar
         JButton botaoCancelar = new JButton("Cancelar");
-
         botaoEnviar.addActionListener(e -> {
             String destinatario = campoDestinatario.getText().trim();
             String assunto = campoAssunto.getText().trim();
             String corpo = areaMensagem.getText().trim();
-
             if (destinatario.isEmpty() || assunto.isEmpty() || corpo.isEmpty()) {
                 JOptionPane.showMessageDialog(dialog,
                         "Por favor, preencha todos os campos de destinatário, assunto e corpo.",
                         "Erro", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-
             // **AQUI VOCÊ INSERE SEU EMAIL GMAIL E A SENHA DE APP**
             // Substitua "SEU_EMAIL_GMAIL@gmail.com" pelo seu email
             // Substitua "SUA_SENHA_DE_APP" pela senha de app gerada ou senha de acesso menos seguro
-            String remetente = "valavezzo@gmail.com"; // <--- SEU EMAIL
-            String senha = "SUA_SENHA_DE_APP"; // <--- SUA SENHA DE APP
-
-            // Verifica se as credenciais foram atualizadas (evita tentar enviar com placeholders)
+            String remetente = "valavezzo@gmail.com";
+            String senha = "peuf oshg zmnp pkqj"
             if (remetente.equals("SEU_EMAIL_GMAIL@gmail.com") || senha.equals("SUA_SENHA_DE_APP")) {
                  JOptionPane.showMessageDialog(dialog,
                         "Por favor, atualize seu email e senha no código (EmailSender).", "Erro de Configuração", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-
-            // Tenta enviar o e-mail
             boolean sucesso = EmailSender.enviarEmail(remetente, senha, destinatario, assunto, corpo);
-
             if (sucesso) {
                 JOptionPane.showMessageDialog(dialog,
                         "E-mail enviado com sucesso!",
@@ -663,14 +616,11 @@ public class ClienteMonitoramento {
         });
 
         botaoCancelar.addActionListener(e -> dialog.dispose());
-
         botoesPanel.add(botaoEnviar);
         botoesPanel.add(botaoCancelar);
-
         panel.add(formPanel, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(botoesPanel, BorderLayout.SOUTH);
-
         dialog.add(panel);
         dialog.setVisible(true);
     }
@@ -680,14 +630,11 @@ public class ClienteMonitoramento {
             "😊", "😂", "❤️", "👍", "🎉", "🔥", "⭐", "💯",
             "😎", "🤔", "😢", "😡", "🙏", "👏", "🎯", "💪"
         };
-
         JDialog dialog = new JDialog(frame, "Selecionar Emoticon", true);
         dialog.setSize(300, 200);
         dialog.setLocationRelativeTo(frame);
-
         JPanel panel = new JPanel(new GridLayout(4, 4, 5, 5));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
         for (String emoticon : emoticons) {
             JButton botao = new JButton(emoticon);
             botao.setFont(new Font("Dialog", Font.PLAIN, 20));
@@ -697,38 +644,29 @@ public class ClienteMonitoramento {
             });
             panel.add(botao);
         }
-
         dialog.add(panel);
         dialog.setVisible(true);
     }
-
     private void iniciarEnvioArquivo() {
         JFileChooser fileChooser = new JFileChooser();
         int resultado = fileChooser.showOpenDialog(frame);
         if (resultado == JFileChooser.APPROVE_OPTION) {
             File arquivoSelecionado = fileChooser.getSelectedFile();
             if (arquivoSelecionado.exists() && arquivoSelecionado.isFile()) {
-                // Criar um JDialog para selecionar o destinatário
                 JDialog dialog = new JDialog(frame, "Selecionar Destinatário", true);
                 dialog.setLayout(new BorderLayout());
-                
-                // Criar o JComboBox com os destinatários
                 DefaultComboBoxModel<String> modelo = new DefaultComboBoxModel<>();
                 modelo.addElement("Todos os Inspetores");
                 modelo.addElement("Central");
-                
-                // Adicionar os inspetores individuais
                 for (String inspetor : chatInspetores.getListaInspetores()) {
-                    if (!inspetor.equals(nomeInspetor)) { // Não incluir o próprio inspetor
+                    if (!inspetor.equals(nomeInspetor)) {
                         modelo.addElement(inspetor);
                     }
                 }
-                
                 JComboBox<String> comboDestinatarios = new JComboBox<>(modelo);
                 JPanel painel = new JPanel(new FlowLayout());
                 painel.add(new JLabel("Enviar para:"));
                 painel.add(comboDestinatarios);
-                
                 JButton btnEnviar = new JButton("Enviar");
                 btnEnviar.setPreferredSize(new Dimension(100, 30));
                 btnEnviar.addActionListener(e -> {
@@ -768,35 +706,25 @@ public class ClienteMonitoramento {
     }
 
     private void abrirListaArquivos() {
-        // Executa a comunicação com o servidor em uma nova thread
         new Thread(() -> {
             try {
-                // 1. Comunicação com o servidor (em thread separada)
                 Socket socketArquivos = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
                 DataOutputStream out = new DataOutputStream(socketArquivos.getOutputStream());
                 DataInputStream in = new DataInputStream(socketArquivos.getInputStream());
-
-                out.writeUTF("LISTAR_ARQUIVOS"); // Envia o comando
-                out.flush(); // Garante que o comando seja enviado imediatamente
-
-                String lista = in.readUTF(); // Bloqueia APENAS esta thread (não a EDT) esperando a lista
-                System.out.println("DEBUG: Lista recebida do servidor: " + lista); // Debug
-
+                out.writeUTF("LISTAR_ARQUIVOS");
+                out.flush();
+                String lista = in.readUTF();
+                System.out.println("DEBUG: Lista recebida do servidor: " + lista);
                 socketArquivos.close();
-
-                // 2. Atualiza a interface gráfica (na EDT)
                 SwingUtilities.invokeLater(() -> {
-                    // Parse da lista recebida
                     if (lista == null || lista.trim().isEmpty()) {
                         JOptionPane.showMessageDialog(frame, "Nenhum arquivo disponível no momento.", 
                             "Arquivos Disponíveis", JOptionPane.INFORMATION_MESSAGE);
                         return;
                     }
-
                     String[] arquivos = lista.split(";");
                     java.util.List<String> nomesExibicao = new java.util.ArrayList<>();
                     Map<String, String[]> mapaArquivos = new HashMap<>();
-
                     for (String arq : arquivos) {
                         if (arq.trim().isEmpty()) continue;
                         String[] partes = arq.split("\\|");
@@ -816,14 +744,11 @@ public class ClienteMonitoramento {
                         return;
                     }
 
-                    // Mostra a lista em um JList
                     JList<String> listaArquivos = new JList<>(nomesExibicao.toArray(new String[0]));
                     JScrollPane scrollPane = new JScrollPane(listaArquivos);
                     scrollPane.setPreferredSize(new Dimension(400, Math.min(300, nomesExibicao.size() * 25)));
-
                     int opcao = JOptionPane.showConfirmDialog(frame, scrollPane, 
                         "Arquivos Disponíveis", JOptionPane.OK_CANCEL_OPTION);
-
                     if (opcao == JOptionPane.OK_OPTION && listaArquivos.getSelectedValue() != null) {
                         String[] info = mapaArquivos.get(listaArquivos.getSelectedValue());
                         iniciarDownloadArquivo(info[0], info[1]);
@@ -841,28 +766,21 @@ public class ClienteMonitoramento {
     }
 
     private void iniciarDownloadArquivo(String nomeUnico, String nomeOriginal) {
-        // Classe interna para armazenar o arquivo de destino
         class ArquivoDestinoHolder {
             File arquivo;
             String erro;
         }
         final ArquivoDestinoHolder holder = new ArquivoDestinoHolder();
-
-        // Executa o download em uma nova thread
         new Thread(() -> {
             try {
-                // Primeiro, mostra o JFileChooser para o usuário escolher onde salvar
                 SwingUtilities.invokeAndWait(() -> {
                     try {
                         JFileChooser fileChooser = new JFileChooser();
                         fileChooser.setSelectedFile(new File(nomeOriginal));
                         fileChooser.setDialogTitle("Salvar arquivo como");
-                        
                         int resultado = fileChooser.showSaveDialog(frame);
                         if (resultado == JFileChooser.APPROVE_OPTION) {
                             holder.arquivo = fileChooser.getSelectedFile();
-                            
-                            // Cria a pasta de destino se não existir
                             File pastaDestino = holder.arquivo.getParentFile();
                             if (pastaDestino != null && !pastaDestino.exists()) {
                                 if (!pastaDestino.mkdirs()) {
@@ -875,7 +793,6 @@ public class ClienteMonitoramento {
                     }
                 });
 
-                // Se houve erro na seleção do arquivo, mostra mensagem e retorna
                 if (holder.erro != null) {
                     SwingUtilities.invokeLater(() -> {
                         JOptionPane.showMessageDialog(frame, holder.erro, "Erro", JOptionPane.ERROR_MESSAGE);
@@ -883,27 +800,19 @@ public class ClienteMonitoramento {
                     return;
                 }
 
-                // Se o usuário cancelou a seleção, não faz o download
                 if (holder.arquivo == null) {
                     return;
                 }
 
-                // Conecta ao servidor para baixar o arquivo
                 Socket socketDownload = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
                 DataOutputStream outDownload = new DataOutputStream(socketDownload.getOutputStream());
                 DataInputStream inDownload = new DataInputStream(socketDownload.getInputStream());
-
-                // Envia o comando de download
                 outDownload.writeUTF("DOWNLOAD:" + nomeUnico);
                 outDownload.flush();
-
-                // Aguarda a resposta do servidor
                 String resposta = inDownload.readUTF();
                 if (!resposta.equals("INICIANDO_DOWNLOAD")) {
                     throw new IOException("Servidor não iniciou o download: " + resposta);
                 }
-
-                // Recebe o arquivo e salva no local escolhido pelo usuário
                 if (TransferenciaArquivos.receberArquivo(socketDownload, holder.arquivo.getName(), holder.arquivo.getParent())) {
                     SwingUtilities.invokeLater(() -> {
                         adicionarMensagem("Arquivo baixado com sucesso: " + holder.arquivo.getName());
@@ -925,46 +834,30 @@ public class ClienteMonitoramento {
         }).start();
     }
 
-    // Método para atualizar a lista de inspetores (chamado pelo ChatInspetores)
     public void atualizarListaInspetores(List<String> listaRecebidaDoServidor) {
         SwingUtilities.invokeLater(() -> {
             inspetoresConectados.clear(); // Limpa a lista atual
-
-            // Sempre incluir as opções fixas
             inspetoresConectados.add("Central");
             inspetoresConectados.add("Todos os Inspetores");
-
-            // Adicionar os inspetores recebidos do servidor (exceto ele mesmo)
             if (listaRecebidaDoServidor != null) {
                 for (String inspetor : listaRecebidaDoServidor) {
-                    // Adicionar inspetor apenas se não for o próprio cliente e não estiver vazio, e ainda não foi adicionado (Central/Todos)
                     if (!inspetor.equals(nomeInspetor) && !inspetor.trim().isEmpty() &&
                         !inspetoresConectados.contains(inspetor.trim())) {
                          inspetoresConectados.add(inspetor.trim());
                     }
                 }
             }
-
-            // DEBUG: Exibir lista atualizada
             System.out.println("DEBUG CLIENTE: Lista de inspetores atualizada: " + inspetoresConectados);
-
         });
     }
 
     private void enviarArquivo(File arquivo, String destinatario) {
         try {
-            // Cria um novo socket para transferência de arquivos
             Socket socketArquivo = new Socket(SERVIDOR_IP, SERVIDOR_PORTA);
             DataOutputStream out = new DataOutputStream(socketArquivo.getOutputStream());
             DataInputStream in = new DataInputStream(socketArquivo.getInputStream());
-
-            // Envia o comando de arquivo com nome, destinatário e remetente
             out.writeUTF("ARQUIVO:" + arquivo.getName() + ":" + destinatario + ":" + nomeInspetor);
-            
-            // Envia o tamanho do arquivo
-            out.writeLong(arquivo.length());
-            
-            // Envia o conteúdo do arquivo
+            out.writeLong(arquivo.length());       
             FileInputStream fileIn = new FileInputStream(arquivo);
             byte[] buffer = new byte[8192];
             int bytesRead;
@@ -972,8 +865,6 @@ public class ClienteMonitoramento {
                 out.write(buffer, 0, bytesRead);
             }
             fileIn.close();
-            
-            // Aguarda confirmação do servidor
             String resposta = in.readUTF();
             if (resposta.equals("ARQUIVO_RECEBIDO")) {
                 adicionarMensagem("Arquivo enviado com sucesso: " + arquivo.getName() + " para " + destinatario);
